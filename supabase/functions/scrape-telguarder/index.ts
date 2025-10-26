@@ -23,7 +23,7 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
   const PER_SOURCE_LIMIT = 100;
   
   // Pattern pour les numéros français - on crée des instances séparées pour éviter les problèmes de state
-  const phonePattern = /(?<!\d)(?:\+?33|0033)\s*[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9]\d{8}(?!\d)/;
+  const phonePattern = /(?<!\d)(?:\+?33|0033)\s*[1-9](?:[\s\u00A0\u2009\u202F.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9](?:[\s\u00A0\u2009\u202F.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9]\d{8}(?!\d)/;
 
   const normalizeFrenchNumber = (input: string): string | null => {
     const digits = input.replace(/[^\d]/g, '');
@@ -99,45 +99,53 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
 
     const html = scrapeResult.html || '';
     const markdown = scrapeResult.markdown || '';
+    const rawContent = (html + '\n' + markdown);
     console.log(`Scraped ${source}, content length: ${html.length + markdown.length}`);
     
-    // Extraire les lignes contenant la date du jour OU les numéros récents
-    const lines = (html + '\n' + markdown).split('\n');
-    const todayLines: string[] = [];
     const patterns = datePatterns[source] || [];
-    
-    // Pour ces sources, on prend aussi les lignes avec des numéros même sans date
     const isLenientSource = ['slickly', 'numeroinconnu', 'callfilter'].includes(source);
-    
-    for (const line of lines) {
-      const hasDate = patterns.some(pattern => pattern.test(line));
-      // Créer une nouvelle regex pour chaque test pour éviter les problèmes de state
-      const hasPhone = new RegExp(phonePattern).test(line);
-      
-      if (hasDate || (isLenientSource && hasPhone)) {
-        todayLines.push(line);
+
+    let contentForExtraction = '';
+    if (isLenientSource) {
+      // Pour ces sources, on ne filtre pas par date: on extrait sur tout le contenu
+      contentForExtraction = rawContent;
+    } else {
+      // Extraire uniquement les lignes contenant la date du jour
+      const lines = rawContent.split('\n');
+      const todayLines: string[] = [];
+      for (const line of lines) {
+        const hasDate = patterns.some(pattern => pattern.test(line));
+        if (hasDate) todayLines.push(line);
       }
+      console.log(`Found ${todayLines.length} lines with today's date in ${source}`);
+      contentForExtraction = todayLines.join('\n');
     }
     
-    console.log(`Found ${todayLines.length} lines with today's date/phones in ${source}`);
-    
-    // Extraire les numéros de téléphone des lignes filtrées
-    const content = todayLines.join('\n');
-    
-    // Créer une nouvelle regex avec le flag global pour matchAll
+    // Extraire aussi les liens tel: qui contiennent souvent les numéros malgré le HTML fragmenté
+    const telHrefRegex = /href\s*=\s*["']tel:([^"']+)["']/gi;
+    const telHrefMatches = [...rawContent.matchAll(telHrefRegex)];
+    console.log(`Found ${telHrefMatches.length} tel: links in ${source}`);
+
+    // Regex globale pour l'extraction texte
     const phoneRegexGlobal = new RegExp(phonePattern, 'g');
-    const matches = [...content.matchAll(phoneRegexGlobal)];
-    
-    console.log(`Found ${matches.length} phone number matches in ${source}`);
-    
-    for (const match of matches) {
-      const rawNumber = match[0];
+    const textMatches = [...contentForExtraction.matchAll(phoneRegexGlobal)];
+    console.log(`Found ${textMatches.length} text phone matches in ${source}`);
+
+    // Fusionner les candidats depuis le texte et les liens tel:
+    const candidates: string[] = [
+      ...textMatches.map((m) => m[0]),
+      ...telHrefMatches.map((m) => m[1]),
+    ];
+
+    console.log(`Total candidate numbers before normalization: ${candidates.length}`);
+
+    for (const rawNumber of candidates) {
       const normalized = normalizeFrenchNumber(rawNumber);
       if (!normalized) continue;
-      
+
       if (!seenNumbers.has(normalized)) {
         seenNumbers.add(normalized);
-        
+
         // Déterminer la catégorie selon la source
         let category = 'Spam signalé';
         if (source === 'telguarder') category = 'Télémarketing';
@@ -145,7 +153,7 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
         else if (source === 'slickly') category = 'Appel indésirable';
         else if (source === 'numeroinconnu') category = 'Numéro inconnu';
         else if (source === 'callfilter') category = 'Spam détecté';
-        
+
         allNumbers.push({
           id: `${source}-${allNumbers.length + 1}`,
           phoneNumber: normalized,
@@ -154,7 +162,7 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
           comment: `Crawled from ${url}`,
           date: today,
         });
-        
+
         if (allNumbers.length >= PER_SOURCE_LIMIT) {
           console.log(`Reached per-source limit (${PER_SOURCE_LIMIT}) for ${source}`);
           break;
