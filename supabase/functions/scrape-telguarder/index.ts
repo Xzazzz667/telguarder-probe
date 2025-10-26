@@ -1,4 +1,3 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import FirecrawlApp from 'https://esm.sh/@mendable/firecrawl-js@1.10.1';
 
 const corsHeaders = {
@@ -15,6 +14,55 @@ interface ScrapedNumber {
   date: string;
 }
 
+async function scrapeWithFirecrawl(url: string, apiKey: string, source: string): Promise<ScrapedNumber[]> {
+  console.log(`Scraping ${url} with Firecrawl...`);
+  
+  try {
+    const firecrawl = new FirecrawlApp({ apiKey });
+    
+    const scrapeResult = await firecrawl.scrapeUrl(url, {
+      formats: ['markdown', 'html'],
+      timeout: 30000,
+    });
+
+    if (!scrapeResult.success) {
+      console.error(`Failed to scrape ${url}`);
+      return [];
+    }
+
+    const html = scrapeResult.html || '';
+    const numbers: ScrapedNumber[] = [];
+    
+    // Regex pour trouver les numéros de téléphone français
+    const phoneRegex = /0[1-9](?:\s?\d{2}){4}|0[1-9]\d{8}/g;
+    const matches = html.match(phoneRegex) || [];
+    
+    // Supprimer les doublons
+    const uniqueNumbers = [...new Set(matches)];
+    
+    console.log(`Found ${uniqueNumbers.length} unique phone numbers on ${source}`);
+    
+    for (let i = 0; i < uniqueNumbers.length; i++) {
+      const rawNumber = uniqueNumbers[i];
+      const cleanNumber = rawNumber.replace(/\s/g, '');
+      
+      numbers.push({
+        id: `${source}-${i + 1}`,
+        phoneNumber: cleanNumber,
+        rawNumber: rawNumber,
+        category: source === 'telguarder' ? 'Télémarketing' : 'Spam signalé',
+        comment: `Scraped from ${url}`,
+        date: new Date().toISOString().split('T')[0],
+      });
+    }
+    
+    return numbers;
+  } catch (error) {
+    console.error(`Error scraping ${url}:`, error);
+    return [];
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -27,56 +75,34 @@ Deno.serve(async (req) => {
     
     const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
     if (!firecrawlApiKey) {
-      throw new Error('FIRECRAWL_API_KEY not configured');
+      throw new Error('FIRECRAWL_API_KEY not configured. Please add your Firecrawl API key in the backend secrets.');
     }
 
-    const firecrawl = new FirecrawlApp({ apiKey: firecrawlApiKey });
+    // Scraper les deux sites en parallèle
+    const [telguarderNumbers, tellowsNumbers] = await Promise.all([
+      scrapeWithFirecrawl('https://www.telguarder.com/fr', firecrawlApiKey, 'telguarder'),
+      scrapeWithFirecrawl('https://www.tellows.fr/stats', firecrawlApiKey, 'tellows'),
+    ]);
     
-    // Scraper la page principale pour récupérer les derniers numéros
-    const scrapeResult = await firecrawl.scrapeUrl('https://www.telguarder.com/fr', {
-      formats: ['markdown', 'html'],
-    });
-
-    if (!scrapeResult.success) {
-      throw new Error('Failed to scrape Telguarder');
+    // Combiner les résultats
+    const allNumbers = [...telguarderNumbers, ...tellowsNumbers];
+    
+    if (allNumbers.length === 0) {
+      console.warn('No phone numbers were found on either website');
     }
-
-    console.log('Scrape successful, parsing data...');
     
-    // Parser le contenu HTML pour extraire les numéros
-    const scrapedNumbers: ScrapedNumber[] = [];
-    const html = scrapeResult.html || '';
+    console.log(`Total numbers found: ${allNumbers.length}`);
     
-    // Regex pour trouver les numéros de téléphone français
-    const phoneRegex = /0[1-9](?:\s?\d{2}){4}/g;
-    const matches = html.match(phoneRegex) || [];
+    // Appliquer la pagination
+    const paginatedNumbers = allNumbers.slice(offset, offset + limit);
     
-    console.log(`Found ${matches.length} phone numbers`);
-    
-    // Simuler pagination avec offset et limit
-    const paginatedMatches = matches.slice(offset, offset + limit);
-    
-    for (let i = 0; i < paginatedMatches.length; i++) {
-      const rawNumber = paginatedMatches[i];
-      const cleanNumber = rawNumber.replace(/\s/g, '');
-      
-      scrapedNumbers.push({
-        id: `tel-${offset + i + 1}`,
-        phoneNumber: cleanNumber,
-        rawNumber: rawNumber,
-        category: 'Télémarketing', // Catégorie par défaut
-        comment: `Scraped from telguarder.com`,
-        date: new Date().toISOString().split('T')[0],
-      });
-    }
-
-    console.log(`Returning ${scrapedNumbers.length} scraped numbers`);
+    console.log(`Returning ${paginatedNumbers.length} scraped numbers`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        data: scrapedNumbers,
-        total: matches.length,
+        data: paginatedNumbers,
+        total: allNumbers.length,
         offset,
         limit,
       }),
