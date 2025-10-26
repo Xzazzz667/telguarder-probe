@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
 
     // Crawler les cinq sites en parallèle avec timeout par site
     const telguarderP = crawlWithFirecrawl('https://www.telguarder.com/fr', firecrawlApiKey, 'telguarder');
-    const tellowsP = crawlWithFirecrawl('https://www.tellows.fr/stats', firecrawlApiKey, 'tellows');
+    const tellowsP = crawlWithFirecrawl('https://www.tellows.fr/', firecrawlApiKey, 'tellows');
     const slicklyP = crawlWithFirecrawl('https://slick.ly/fr/', firecrawlApiKey, 'slickly');
     const numeroInconnuP = crawlWithFirecrawl('https://www.numeroinconnu.fr/', firecrawlApiKey, 'numeroinconnu');
     const callfilterP = crawlWithFirecrawl('https://callfilter.app/', firecrawlApiKey, 'callfilter');
