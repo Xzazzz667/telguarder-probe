@@ -87,19 +87,32 @@ Deno.serve(async (req) => {
       throw new Error('FIRECRAWL_API_KEY not configured. Please add your Firecrawl API key in the backend secrets.');
     }
 
-    // Crawler les deux sites en parallèle
+    // Crawler les deux sites en parallèle avec timeout par site
+    const telguarderP = crawlWithFirecrawl('https://www.telguarder.com/fr', firecrawlApiKey, 'telguarder');
+    const tellowsP = crawlWithFirecrawl('https://www.tellows.fr/stats', firecrawlApiKey, 'tellows');
+
+    // Timeout util - retourne une liste vide si le site prend trop de temps
+    const timeout = (ms: number) => new Promise<ScrapedNumber[]>((resolve) => setTimeout(() => resolve([]), ms));
+
     const [telguarderNumbers, tellowsNumbers] = await Promise.all([
-      crawlWithFirecrawl('https://www.telguarder.com/fr', firecrawlApiKey, 'telguarder'),
-      crawlWithFirecrawl('https://www.tellows.fr/stats', firecrawlApiKey, 'tellows'),
+      Promise.race([telguarderP, timeout(25000)]),
+      Promise.race([tellowsP, timeout(25000)]),
     ]);
     
     // Combiner les résultats
     const allNumbers = [...telguarderNumbers, ...tellowsNumbers];
-    
+
     if (allNumbers.length === 0) {
-      console.warn('No phone numbers were found on either website');
+      console.warn('No phone numbers were found on either website (timeout or site blocked)');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Aucun numéro trouvé (timeout ou blocage des sites). Réessayez ou relancez un nouveau scrap.'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-    
+
     console.log(`Total numbers found: ${allNumbers.length}`);
     
     // Appliquer la pagination
