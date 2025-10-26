@@ -37,17 +37,47 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
     return null;
   };
 
-  // Patterns de date par source pour filtrer uniquement les numéros du jour
+  // Patterns de date par source - plus permissifs pour capturer les numéros récents
   const now = new Date();
   const today = now.toISOString().split('T')[0];
   const [year, month, day] = today.split('-');
   
+  // Version sans zéro pour le jour/mois si nécessaire
+  const dayNum = parseInt(day, 10).toString();
+  const monthNum = parseInt(month, 10).toString();
+  
   const datePatterns: Record<string, RegExp[]> = {
-    'telguarder': [new RegExp(`${year}\\.${month}\\.${day}`)],
-    'tellows': [new RegExp(`${day}/${month}/${year}`)],
-    'slickly': [new RegExp(`${year}-${month}-${day}`)],
-    'numeroinconnu': [new RegExp(`${day}/${month}/${year}`)],
-    'callfilter': [/il y a \d+ heures?/i, /aujourd'hui/i, /à l'instant/i]
+    'telguarder': [
+      new RegExp(`${year}\\.${month}\\.${day}`),
+      new RegExp(`${year}\\.${monthNum}\\.${dayNum}`)
+    ],
+    'tellows': [
+      new RegExp(`${day}/${month}/${year}`),
+      new RegExp(`${dayNum}/${monthNum}/${year}`),
+      /aujourd'hui/i,
+      /il y a \d+ (heure|minute)/i
+    ],
+    'slickly': [
+      new RegExp(`${year}-${month}-${day}`),
+      new RegExp(`${dayNum}/${monthNum}/${year}`),
+      new RegExp(`${day}/${month}/${year}`),
+      /aujourd'hui/i,
+      /il y a \d+ (heure|minute)/i
+    ],
+    'numeroinconnu': [
+      new RegExp(`${day}/${month}/${year}`),
+      new RegExp(`${dayNum}/${monthNum}/${year}`),
+      /aujourd'hui/i,
+      /il y a \d+ (heure|minute)/i,
+      /à l'instant/i
+    ],
+    'callfilter': [
+      /il y a \d+ (heure|minute)s?/i,
+      /aujourd'hui/i,
+      /à l'instant/i,
+      new RegExp(`${day}/${month}/${year}`),
+      new RegExp(`${dayNum}/${monthNum}/${year}`)
+    ]
   };
 
   try {
@@ -69,38 +99,61 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
     const markdown = scrapeResult.markdown || '';
     console.log(`Scraped ${source}, content length: ${html.length + markdown.length}`);
     
-    // Extraire les lignes contenant la date du jour
+    // Extraire les lignes contenant la date du jour OU les numéros récents
     const lines = (html + '\n' + markdown).split('\n');
     const todayLines: string[] = [];
     const patterns = datePatterns[source] || [];
     
+    // Pour ces sources, on prend aussi les lignes avec des numéros même sans date
+    const isLenientSource = ['slickly', 'numeroinconnu', 'callfilter'].includes(source);
+    
     for (const line of lines) {
-      if (patterns.some(pattern => pattern.test(line))) {
+      const hasDate = patterns.some(pattern => pattern.test(line));
+      const hasPhone = phoneRegex.test(line);
+      
+      if (hasDate || (isLenientSource && hasPhone)) {
         todayLines.push(line);
       }
     }
     
-    console.log(`Found ${todayLines.length} lines with today's date in ${source}`);
+    console.log(`Found ${todayLines.length} lines with today's date/phones in ${source}`);
     
     // Extraire les numéros de téléphone des lignes filtrées
     const content = todayLines.join('\n');
-    const matches = content.match(phoneRegex) || [];
     
-    for (const rawNumber of matches) {
+    // Reset regex pour s'assurer qu'elle fonctionne bien
+    phoneRegex.lastIndex = 0;
+    const matches = [...content.matchAll(phoneRegex)];
+    
+    console.log(`Found ${matches.length} phone number matches in ${source}`);
+    
+    for (const match of matches) {
+      const rawNumber = match[0];
       const normalized = normalizeFrenchNumber(rawNumber);
       if (!normalized) continue;
+      
       if (!seenNumbers.has(normalized)) {
         seenNumbers.add(normalized);
+        
+        // Déterminer la catégorie selon la source
+        let category = 'Spam signalé';
+        if (source === 'telguarder') category = 'Télémarketing';
+        else if (source === 'tellows') category = 'Spam signalé';
+        else if (source === 'slickly') category = 'Appel indésirable';
+        else if (source === 'numeroinconnu') category = 'Numéro inconnu';
+        else if (source === 'callfilter') category = 'Spam détecté';
+        
         allNumbers.push({
           id: `${source}-${allNumbers.length + 1}`,
           phoneNumber: normalized,
           rawNumber,
-          category: source === 'telguarder' ? 'Télémarketing' : 'Spam signalé',
+          category,
           comment: `Crawled from ${url}`,
           date: today,
         });
+        
         if (allNumbers.length >= PER_SOURCE_LIMIT) {
-          console.log(`Reached per-source cap (${PER_SOURCE_LIMIT}) on ${source}`);
+          console.log(`Reached per-source limit (${PER_SOURCE_LIMIT}) for ${source}`);
           break;
         }
       }
