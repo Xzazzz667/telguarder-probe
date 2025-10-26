@@ -14,51 +14,71 @@ interface ScrapedNumber {
   date: string;
 }
 
-async function scrapeWithFirecrawl(url: string, apiKey: string, source: string): Promise<ScrapedNumber[]> {
-  console.log(`Scraping ${url} with Firecrawl...`);
+async function crawlWithFirecrawl(url: string, apiKey: string, source: string, targetCount: number): Promise<ScrapedNumber[]> {
+  console.log(`Crawling ${url} with Firecrawl (target: ${targetCount} numbers)...`);
   
   try {
     const firecrawl = new FirecrawlApp({ apiKey });
     
-    const scrapeResult = await firecrawl.scrapeUrl(url, {
-      formats: ['markdown', 'html'],
-      timeout: 30000,
+    // Utiliser crawlUrl pour parcourir plusieurs pages
+    const crawlResult = await firecrawl.crawlUrl(url, {
+      limit: 50, // Crawler jusqu'à 50 pages
+      scrapeOptions: {
+        formats: ['markdown', 'html'],
+      },
     });
 
-    if (!scrapeResult.success) {
-      console.error(`Failed to scrape ${url}`);
+    if (!crawlResult.success) {
+      console.error(`Failed to crawl ${url}`);
       return [];
     }
 
-    const html = scrapeResult.html || '';
     const numbers: ScrapedNumber[] = [];
+    const seenNumbers = new Set<string>();
     
     // Regex pour trouver les numéros de téléphone français
     const phoneRegex = /0[1-9](?:\s?\d{2}){4}|0[1-9]\d{8}/g;
-    const matches = html.match(phoneRegex) || [];
     
-    // Supprimer les doublons
-    const uniqueNumbers = [...new Set(matches)];
+    // Parcourir toutes les pages crawlées
+    const pages = crawlResult.data || [];
+    console.log(`Crawled ${pages.length} pages from ${source}`);
     
-    console.log(`Found ${uniqueNumbers.length} unique phone numbers on ${source}`);
-    
-    for (let i = 0; i < uniqueNumbers.length; i++) {
-      const rawNumber = uniqueNumbers[i];
-      const cleanNumber = rawNumber.replace(/\s/g, '');
+    for (const page of pages) {
+      const html = page.html || '';
+      const matches = html.match(phoneRegex) || [];
       
-      numbers.push({
-        id: `${source}-${i + 1}`,
-        phoneNumber: cleanNumber,
-        rawNumber: rawNumber,
-        category: source === 'telguarder' ? 'Télémarketing' : 'Spam signalé',
-        comment: `Scraped from ${url}`,
-        date: new Date().toISOString().split('T')[0],
-      });
+      for (const rawNumber of matches) {
+        const cleanNumber = rawNumber.replace(/\s/g, '');
+        
+        // Éviter les doublons
+        if (!seenNumbers.has(cleanNumber)) {
+          seenNumbers.add(cleanNumber);
+          
+          numbers.push({
+            id: `${source}-${numbers.length + 1}`,
+            phoneNumber: cleanNumber,
+            rawNumber: rawNumber,
+            category: source === 'telguarder' ? 'Télémarketing' : 'Spam signalé',
+            comment: `Crawled from ${page.url || url}`,
+            date: new Date().toISOString().split('T')[0],
+          });
+          
+          // Arrêter si on a atteint le nombre cible
+          if (numbers.length >= targetCount) {
+            break;
+          }
+        }
+      }
+      
+      if (numbers.length >= targetCount) {
+        break;
+      }
     }
     
+    console.log(`Found ${numbers.length} unique phone numbers on ${source}`);
     return numbers;
   } catch (error) {
-    console.error(`Error scraping ${url}:`, error);
+    console.error(`Error crawling ${url}:`, error);
     return [];
   }
 }
@@ -78,10 +98,11 @@ Deno.serve(async (req) => {
       throw new Error('FIRECRAWL_API_KEY not configured. Please add your Firecrawl API key in the backend secrets.');
     }
 
-    // Scraper les deux sites en parallèle
+    // Crawler les deux sites en parallèle pour obtenir plus de numéros
+    const targetPerSite = Math.ceil(limit / 2); // Répartir l'objectif entre les deux sites
     const [telguarderNumbers, tellowsNumbers] = await Promise.all([
-      scrapeWithFirecrawl('https://www.telguarder.com/fr', firecrawlApiKey, 'telguarder'),
-      scrapeWithFirecrawl('https://www.tellows.fr/stats', firecrawlApiKey, 'tellows'),
+      crawlWithFirecrawl('https://www.telguarder.com/fr', firecrawlApiKey, 'telguarder', targetPerSite),
+      crawlWithFirecrawl('https://www.tellows.fr/stats', firecrawlApiKey, 'tellows', targetPerSite),
     ]);
     
     // Combiner les résultats
