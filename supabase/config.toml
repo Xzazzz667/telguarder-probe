@@ -1,1 +1,4 @@
 project_id = "adktmoxwxcuslwthadvp"
+
+[functions.scrape-telguarder]
+verify_jwt = false

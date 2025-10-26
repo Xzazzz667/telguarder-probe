@@ -27,7 +27,7 @@ export function ScrapingForm({ onScrapingComplete, currentDataCount }: ScrapingF
 
     try {
       // Import dynamically to avoid build issues
-      const { scrapeTelguarder } = await import('@/utils/mockScraper');
+      const { FirecrawlService } = await import('@/services/FirecrawlService');
       
       // Déterminer le nombre de numéros à extraire
       // Premier clic : 1000, deuxième clic : 1000 de plus (total 2000), etc.
@@ -35,7 +35,7 @@ export function ScrapingForm({ onScrapingComplete, currentDataCount }: ScrapingF
       const limit = 1000;
       const offset = currentDataCount;
       
-      const data = await scrapeTelguarder(url, limit, offset, (current, total) => {
+      const data = await FirecrawlService.scrapeTelguarder(limit, offset, (current, total) => {
         setCurrentCount(current);
         setTotalCount(total);
         setProgress((current / total) * 100);
