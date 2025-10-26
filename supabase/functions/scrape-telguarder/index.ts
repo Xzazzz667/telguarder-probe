@@ -19,7 +19,23 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
   
   const allNumbers: ScrapedNumber[] = [];
   const seenNumbers = new Set<string>();
-  const phoneRegex = /0[1-9](?:\s?\d{2}){4}|0[1-9]\d{8}/g;
+  // Match FR numbers in national or international form and avoid partial captures
+  const phoneRegex = /(?<!\d)(?:\+?33|0033)\s*[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9]\d{8}(?!\d)/g;
+
+  // Normalize to French national format: 0XXXXXXXXX
+  const normalizeFrenchNumber = (input: string): string | null => {
+    const digits = input.replace(/[^\d]/g, '');
+    if (digits.startsWith('0033')) {
+      const rest = digits.slice(4);
+      return rest.length === 9 ? '0' + rest : null;
+    }
+    if (digits.startsWith('33')) {
+      const rest = digits.slice(2);
+      return rest.length === 9 ? '0' + rest : null;
+    }
+    if (digits.startsWith('0') && digits.length === 10) return digits;
+    return null;
+  };
 
   try {
     const firecrawl = new FirecrawlApp({ apiKey });
@@ -47,15 +63,14 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
       const matches = html.match(phoneRegex) || [];
       
       for (const rawNumber of matches) {
-        const cleanNumber = rawNumber.replace(/\s/g, '');
-        
-        if (!seenNumbers.has(cleanNumber)) {
-          seenNumbers.add(cleanNumber);
-          
+        const normalized = normalizeFrenchNumber(rawNumber);
+        if (!normalized) continue;
+        if (!seenNumbers.has(normalized)) {
+          seenNumbers.add(normalized);
           allNumbers.push({
             id: `${source}-${allNumbers.length + 1}`,
-            phoneNumber: cleanNumber,
-            rawNumber: rawNumber,
+            phoneNumber: normalized,
+            rawNumber,
             category: source === 'telguarder' ? 'Télémarketing' : 'Spam signalé',
             comment: `Crawled from ${page.url || url}`,
             date: new Date().toISOString().split('T')[0],
