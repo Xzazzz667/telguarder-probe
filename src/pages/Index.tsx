@@ -4,6 +4,7 @@ import { ScrapedNumber } from '@/types';
 import { ScrapingForm } from '@/components/ScrapingForm';
 import { ResultsTable } from '@/components/ResultsTable';
 import { StatsPanel } from '@/components/StatsPanel';
+import { CountdownTimer } from '@/components/CountdownTimer';
 import { operatorMatcher } from '@/utils/operatorMatcher';
 import { loadOperatorRanges, loadOperatorIdentities } from '@/utils/csvLoader';
 import { DatabaseService } from '@/services/DatabaseService';
@@ -123,6 +124,9 @@ const Index = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-8">
+          {/* Countdown Timer */}
+          <CountdownTimer />
+          
           {/* Scraping Form */}
           <ScrapingForm 
             onScrapingComplete={handleScrapingComplete}
