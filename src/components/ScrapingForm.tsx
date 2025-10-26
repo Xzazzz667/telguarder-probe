@@ -2,19 +2,21 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Database, Loader2 } from 'lucide-react';
+import { Database, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ScrapingFormProps {
-  onScrapingComplete: (data: any[]) => void;
+  onScrapingComplete: (data: any[], append: boolean) => void;
+  currentDataCount: number;
 }
 
-export function ScrapingForm({ onScrapingComplete }: ScrapingFormProps) {
+export function ScrapingForm({ onScrapingComplete, currentDataCount }: ScrapingFormProps) {
   const [url, setUrl] = useState('https://www.telguarder.com/fr');
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentCount, setCurrentCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [scrapingRound, setScrapingRound] = useState(0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,14 +29,28 @@ export function ScrapingForm({ onScrapingComplete }: ScrapingFormProps) {
       // Import dynamically to avoid build issues
       const { scrapeTelguarder } = await import('@/utils/mockScraper');
       
-      const data = await scrapeTelguarder(url, (current, total) => {
+      // Déterminer le nombre de numéros à extraire
+      // Premier clic : 1000, deuxième clic : 1000 de plus (total 2000), etc.
+      const isFirstScraping = currentDataCount === 0;
+      const limit = 1000;
+      const offset = currentDataCount;
+      
+      const data = await scrapeTelguarder(url, limit, offset, (current, total) => {
         setCurrentCount(current);
         setTotalCount(total);
         setProgress((current / total) * 100);
       });
 
-      onScrapingComplete(data);
-      toast.success(`${data.length} numéros extraits avec succès`);
+      // Si c'est la première extraction, remplacer. Sinon, ajouter.
+      onScrapingComplete(data, !isFirstScraping);
+      
+      setScrapingRound(scrapingRound + 1);
+      
+      if (isFirstScraping) {
+        toast.success(`${data.length} numéros extraits avec succès`);
+      } else {
+        toast.success(`${data.length} numéros supplémentaires ajoutés (Total: ${currentDataCount + data.length})`);
+      }
     } catch (error) {
       console.error('Erreur lors du scraping:', error);
       toast.error('Erreur lors de l\'extraction des données');
@@ -94,13 +110,24 @@ export function ScrapingForm({ onScrapingComplete }: ScrapingFormProps) {
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Scraping en cours...
             </>
-          ) : (
+          ) : currentDataCount === 0 ? (
             <>
               <Database className="mr-2 h-4 w-4" />
-              Scraper les numéros
+              Scraper les 1000 premiers numéros
+            </>
+          ) : (
+            <>
+              <Plus className="mr-2 h-4 w-4" />
+              Charger 1000 numéros supplémentaires
             </>
           )}
         </Button>
+        
+        {currentDataCount > 0 && !isLoading && (
+          <p className="text-center text-sm text-muted-foreground">
+            {currentDataCount} numéros actuellement chargés
+          </p>
+        )}
       </form>
     </div>
   );

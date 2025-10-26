@@ -39,10 +39,17 @@ const Index = () => {
     loadData();
   }, []);
 
-  const handleScrapingComplete = (data: ScrapedNumber[]) => {
+  const handleScrapingComplete = (data: ScrapedNumber[], append: boolean = false) => {
     // Match operators for all numbers
     const matchedData = operatorMatcher.matchNumbers(data);
-    setScrapedData(matchedData);
+    
+    if (append) {
+      // Ajouter aux données existantes
+      setScrapedData(prev => [...prev, ...matchedData]);
+    } else {
+      // Remplacer les données
+      setScrapedData(matchedData);
+    }
   };
 
   if (isLoadingData) {
@@ -79,7 +86,10 @@ const Index = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-8">
           {/* Scraping Form */}
-          <ScrapingForm onScrapingComplete={handleScrapingComplete} />
+          <ScrapingForm 
+            onScrapingComplete={handleScrapingComplete}
+            currentDataCount={scrapedData.length}
+          />
 
           {/* Results Section */}
           {scrapedData.length > 0 && (
