@@ -16,24 +16,55 @@ export class OperatorMatcher {
   }
 
   matchNumber(phoneNumber: string): { operator: string; operatorCode: string } {
-    // Remove leading 0 and convert to number for comparison
-    const normalizedNumber = phoneNumber.replace(/^0/, '');
-    const numberValue = parseInt(normalizedNumber, 10);
+    // Nettoyer le numéro (retirer espaces, tirets, etc.)
+    const cleanNumber = phoneNumber.replace(/\D/g, '');
+    
+    // Retirer le 0 initial pour la comparaison
+    const normalizedNumber = cleanNumber.replace(/^0/, '');
+    
+    if (!normalizedNumber || normalizedNumber.length < 9) {
+      console.warn(`Numéro invalide: ${phoneNumber}`);
+      return {
+        operator: 'Inconnu',
+        operatorCode: 'INVALID'
+      };
+    }
 
-    // Find matching range using binary search for performance
+    // Chercher la tranche correspondante
     for (const range of this.ranges) {
-      const rangeStart = parseInt(range.trancheDebut.replace(/^0/, ''), 10);
-      const rangeEnd = parseInt(range.trancheFin.replace(/^0/, ''), 10);
+      // Nettoyer les tranches aussi
+      const rangeStart = range.trancheDebut.replace(/\D/g, '').replace(/^0/, '');
+      const rangeEnd = range.trancheFin.replace(/\D/g, '').replace(/^0/, '');
+      
+      if (!rangeStart || !rangeEnd) continue;
 
-      if (numberValue >= rangeStart && numberValue <= rangeEnd) {
+      // Comparaison en tant que strings pour éviter les problèmes de précision
+      // On prend la longueur de la plus courte chaîne pour la comparaison
+      const compareLength = Math.min(normalizedNumber.length, rangeStart.length);
+      const numberPrefix = normalizedNumber.substring(0, compareLength);
+      const rangeStartPrefix = rangeStart.substring(0, compareLength);
+      const rangeEndPrefix = rangeEnd.substring(0, compareLength);
+
+      if (numberPrefix >= rangeStartPrefix && numberPrefix <= rangeEndPrefix) {
         const identity = this.identities.get(range.mnemo);
-        return {
-          operator: identity?.identiteOperateur || 'Inconnu',
-          operatorCode: range.mnemo
-        };
+        
+        if (identity) {
+          console.log(`Match trouvé: ${phoneNumber} -> ${identity.identiteOperateur} (${range.mnemo})`);
+          return {
+            operator: identity.identiteOperateur,
+            operatorCode: range.mnemo
+          };
+        } else {
+          console.warn(`Mnémo ${range.mnemo} trouvé mais pas d'identité correspondante`);
+          return {
+            operator: range.mnemo,
+            operatorCode: range.mnemo
+          };
+        }
       }
     }
 
+    console.warn(`Pas de tranche trouvée pour: ${phoneNumber}`);
     return {
       operator: 'Inconnu',
       operatorCode: 'UNKNOWN'

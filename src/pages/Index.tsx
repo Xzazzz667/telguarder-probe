@@ -16,15 +16,18 @@ const Index = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
+        console.log('Début du chargement des données ARCEP...');
         const [ranges, identities] = await Promise.all([
           loadOperatorRanges(),
           loadOperatorIdentities(),
         ]);
         
+        console.log(`Données chargées: ${ranges.length} tranches, ${identities.length} opérateurs`);
+        
         operatorMatcher.setRanges(ranges);
         operatorMatcher.setIdentities(identities);
         
-        toast.success('Données ARCEP chargées');
+        toast.success(`Données ARCEP chargées: ${ranges.length} tranches, ${identities.length} opérateurs`);
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error);
         toast.error('Erreur lors du chargement des données ARCEP');
