@@ -14,85 +14,61 @@ interface ScrapedNumber {
   date: string;
 }
 
-async function crawlWithFirecrawl(url: string, apiKey: string, source: string, targetCount: number): Promise<ScrapedNumber[]> {
-  console.log(`Crawling ${url} with Firecrawl (target: ${targetCount} numbers)...`);
+async function crawlWithFirecrawl(url: string, apiKey: string, source: string): Promise<ScrapedNumber[]> {
+  console.log(`Crawling ${url} with Firecrawl...`);
   
   const allNumbers: ScrapedNumber[] = [];
   const seenNumbers = new Set<string>();
   const phoneRegex = /0[1-9](?:\s?\d{2}){4}|0[1-9]\d{8}/g;
-  const maxRounds = 20; // Maximum 20 crawls de 50 pages = 1000 pages max
-  let round = 0;
 
   try {
     const firecrawl = new FirecrawlApp({ apiKey });
     
-    // Faire plusieurs crawls successifs jusqu'à atteindre le nombre cible
-    while (allNumbers.length < targetCount && round < maxRounds) {
-      round++;
-      console.log(`Round ${round} for ${source}, current: ${allNumbers.length}/${targetCount}`);
-      
-      const crawlResult = await firecrawl.crawlUrl(url, {
-        limit: 50, // Limite Firecrawl par crawl
-        scrapeOptions: {
-          formats: ['markdown', 'html'],
-        },
-      });
+    // Un seul crawl de 50 pages pour éviter le timeout
+    console.log(`Starting crawl for ${source}...`);
+    
+    const crawlResult = await firecrawl.crawlUrl(url, {
+      limit: 50,
+      scrapeOptions: {
+        formats: ['markdown', 'html'],
+      },
+    });
 
-      if (!crawlResult.success) {
-        console.error(`Failed to crawl ${url} on round ${round}`);
-        break;
-      }
+    if (!crawlResult.success) {
+      console.error(`Failed to crawl ${url}`);
+      return [];
+    }
 
-      const pages = crawlResult.data || [];
-      console.log(`Crawled ${pages.length} pages from ${source} (round ${round})`);
+    const pages = crawlResult.data || [];
+    console.log(`Crawled ${pages.length} pages from ${source}`);
+    
+    for (const page of pages) {
+      const html = page.html || '';
+      const matches = html.match(phoneRegex) || [];
       
-      let numbersFoundThisRound = 0;
-      
-      for (const page of pages) {
-        const html = page.html || '';
-        const matches = html.match(phoneRegex) || [];
+      for (const rawNumber of matches) {
+        const cleanNumber = rawNumber.replace(/\s/g, '');
         
-        for (const rawNumber of matches) {
-          const cleanNumber = rawNumber.replace(/\s/g, '');
+        if (!seenNumbers.has(cleanNumber)) {
+          seenNumbers.add(cleanNumber);
           
-          if (!seenNumbers.has(cleanNumber)) {
-            seenNumbers.add(cleanNumber);
-            numbersFoundThisRound++;
-            
-            allNumbers.push({
-              id: `${source}-${allNumbers.length + 1}`,
-              phoneNumber: cleanNumber,
-              rawNumber: rawNumber,
-              category: source === 'telguarder' ? 'Télémarketing' : 'Spam signalé',
-              comment: `Crawled from ${page.url || url}`,
-              date: new Date().toISOString().split('T')[0],
-            });
-            
-            if (allNumbers.length >= targetCount) {
-              break;
-            }
-          }
+          allNumbers.push({
+            id: `${source}-${allNumbers.length + 1}`,
+            phoneNumber: cleanNumber,
+            rawNumber: rawNumber,
+            category: source === 'telguarder' ? 'Télémarketing' : 'Spam signalé',
+            comment: `Crawled from ${page.url || url}`,
+            date: new Date().toISOString().split('T')[0],
+          });
         }
-        
-        if (allNumbers.length >= targetCount) {
-          break;
-        }
-      }
-      
-      console.log(`Round ${round} complete: +${numbersFoundThisRound} numbers, total: ${allNumbers.length}`);
-      
-      // Si on n'a trouvé aucun nouveau numéro, arrêter
-      if (numbersFoundThisRound === 0) {
-        console.log(`No new numbers found on round ${round}, stopping`);
-        break;
       }
     }
     
-    console.log(`Found ${allNumbers.length} unique phone numbers on ${source} after ${round} rounds`);
+    console.log(`Found ${allNumbers.length} unique phone numbers on ${source}`);
     return allNumbers;
   } catch (error) {
     console.error(`Error crawling ${url}:`, error);
-    return allNumbers; // Retourner ce qu'on a déjà collecté
+    return allNumbers;
   }
 }
 
@@ -111,11 +87,10 @@ Deno.serve(async (req) => {
       throw new Error('FIRECRAWL_API_KEY not configured. Please add your Firecrawl API key in the backend secrets.');
     }
 
-    // Crawler les deux sites en parallèle pour obtenir plus de numéros
-    const targetPerSite = Math.ceil(limit / 2); // Répartir l'objectif entre les deux sites
+    // Crawler les deux sites en parallèle
     const [telguarderNumbers, tellowsNumbers] = await Promise.all([
-      crawlWithFirecrawl('https://www.telguarder.com/fr', firecrawlApiKey, 'telguarder', targetPerSite),
-      crawlWithFirecrawl('https://www.tellows.fr/stats', firecrawlApiKey, 'tellows', targetPerSite),
+      crawlWithFirecrawl('https://www.telguarder.com/fr', firecrawlApiKey, 'telguarder'),
+      crawlWithFirecrawl('https://www.tellows.fr/stats', firecrawlApiKey, 'tellows'),
     ]);
     
     // Combiner les résultats
