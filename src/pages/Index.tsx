@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ScrapedNumber } from '@/types';
 import { ScrapingForm } from '@/components/ScrapingForm';
 import { ResultsTable } from '@/components/ResultsTable';
@@ -6,12 +7,23 @@ import { StatsPanel } from '@/components/StatsPanel';
 import { operatorMatcher } from '@/utils/operatorMatcher';
 import { loadOperatorRanges, loadOperatorIdentities } from '@/utils/csvLoader';
 import { DatabaseService } from '@/services/DatabaseService';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Loader2, Phone } from 'lucide-react';
+import { Loader2, Phone, LogOut } from 'lucide-react';
 
 const Index = () => {
+  const { user, signOut, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [scrapedData, setScrapedData] = useState<ScrapedNumber[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
+
+  // Redirect to auth if not logged in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
+    }
+  }, [user, authLoading, navigate]);
 
   // Load operator data on mount
   useEffect(() => {
@@ -60,7 +72,12 @@ const Index = () => {
     toast.success(`${data.length} nouveaux numéros ajoutés, opérateurs mis à jour`);
   };
 
-  if (isLoadingData) {
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  if (authLoading || isLoadingData) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -71,20 +88,33 @@ const Index = () => {
     );
   }
 
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b bg-gradient-to-r from-card to-card shadow-[var(--shadow-sm)]">
         <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-glow shadow-[var(--shadow-md)]">
-              <Phone className="h-6 w-6 text-primary-foreground" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-glow shadow-[var(--shadow-md)]">
+                <Phone className="h-6 w-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">TelGuarder Analytics</h1>
+                <p className="text-sm text-muted-foreground">
+                  Extraction et analyse des numéros de téléphone
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">TelGuarder Analytics</h1>
-              <p className="text-sm text-muted-foreground">
-                Extraction et analyse des numéros de téléphone
-              </p>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">{user.email}</span>
+              <Button variant="outline" size="sm" onClick={handleSignOut}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Déconnexion
+              </Button>
             </div>
           </div>
         </div>

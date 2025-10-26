@@ -20,7 +20,6 @@ export class OperatorMatcher {
     const cleanNumber = phoneNumber.replace(/\D/g, '');
     
     if (!cleanNumber || cleanNumber.length !== 10) {
-      console.warn(`Numéro invalide (longueur ${cleanNumber.length}): ${phoneNumber}`);
       return {
         operator: 'Inconnu',
         operatorCode: 'INVALID'
@@ -49,13 +48,11 @@ export class OperatorMatcher {
         const identity = this.identities.get(range.mnemo);
         
         if (identity) {
-          console.log(`✓ Match: ${phoneNumber} -> ${identity.identiteOperateur} (${range.mnemo})`);
           return {
             operator: identity.identiteOperateur,
             operatorCode: range.mnemo
           };
         } else {
-          console.warn(`Mnémo ${range.mnemo} trouvé mais pas d'identité correspondante pour ${phoneNumber}`);
           return {
             operator: range.mnemo,
             operatorCode: range.mnemo
@@ -64,7 +61,6 @@ export class OperatorMatcher {
       }
     }
 
-    console.warn(`✗ Pas de tranche trouvée pour: ${phoneNumber}`);
     return {
       operator: 'Inconnu',
       operatorCode: 'UNKNOWN'
