@@ -51,11 +51,13 @@ const Index = () => {
   }, []);
 
   const handleScrapingComplete = async (data: ScrapedNumber[], append: boolean = false) => {
-    // Recharger toutes les données depuis la base de données
+    // Recharger toutes les données depuis la base de données puis mettre à jour les opérateurs
     const allNumbers = await DatabaseService.getAllNumbers();
-    setScrapedData(allNumbers);
+    await DatabaseService.updateOperators(allNumbers);
+    const refreshed = await DatabaseService.getAllNumbers();
+    setScrapedData(refreshed);
     
-    toast.success(`${data.length} nouveaux numéros ajoutés, total: ${allNumbers.length}`);
+    toast.success(`${data.length} nouveaux numéros ajoutés, opérateurs mis à jour`);
   };
 
   if (isLoadingData) {

@@ -20,6 +20,7 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
   
   const allNumbers: ScrapedNumber[] = [];
   const seenNumbers = new Set<string>();
+  const PER_SOURCE_LIMIT = 100;
   const phoneRegex = /(?<!\d)(?:\+?33|0033)\s*[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9]\d{8}(?!\d)/g;
 
   const normalizeFrenchNumber = (input: string): string | null => {
@@ -98,6 +99,10 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
           comment: `Crawled from ${url}`,
           date: today,
         });
+        if (allNumbers.length >= PER_SOURCE_LIMIT) {
+          console.log(`Reached per-source cap (${PER_SOURCE_LIMIT}) on ${source}`);
+          break;
+        }
       }
     }
     
