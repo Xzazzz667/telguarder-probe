@@ -30,7 +30,7 @@ export class DatabaseService {
 
   // Mettre à jour les opérateurs des numéros qui ont "Inconnu"
   static async updateOperators(numbers: ScrapedNumber[]): Promise<void> {
-    const unknownNumbers = numbers.filter(n => !n.operator || n.operator === 'Inconnu');
+    const unknownNumbers = numbers.filter(n => !n.operator || n.operator === 'Inconnu' || /�/.test(n.operator || ''));
     
     if (unknownNumbers.length === 0) {
       console.log('✅ No unknown operators to update');
