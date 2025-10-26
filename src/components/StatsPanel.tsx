@@ -21,7 +21,7 @@ export function StatsPanel({ data }: StatsPanelProps) {
 
     const topOperators = Object.entries(operatorCounts)
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 5);
+      .slice(0, 25);
 
     return {
       total: data.length,
@@ -131,7 +131,7 @@ export function StatsPanel({ data }: StatsPanelProps) {
       {/* Top Operators */}
       <Card className="border shadow-[var(--shadow-md)]">
         <CardHeader>
-          <CardTitle>Top 5 Opérateurs</CardTitle>
+          <CardTitle>Top 25 Opérateurs</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">

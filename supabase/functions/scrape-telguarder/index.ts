@@ -1,4 +1,5 @@
 import FirecrawlApp from 'https://esm.sh/@mendable/firecrawl-js@1.10.1';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -93,7 +94,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { limit = 1000, offset = 0 } = await req.json();
+    const { limit = 1000, offset = 0, auto_scrape = false } = await req.json();
+    
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
     
     console.log(`Starting scrape with limit=${limit}, offset=${offset}`);
     
@@ -119,6 +125,16 @@ Deno.serve(async (req) => {
 
     if (allNumbers.length === 0) {
       console.warn('No phone numbers were found on either website (timeout or site blocked)');
+      
+      // Si c'est un auto_scrape, retourner succès quand même (pas de nouveaux numéros)
+      if (auto_scrape) {
+        console.log('Auto-scrape completed with no new numbers');
+        return new Response(
+          JSON.stringify({ success: true, data: [], total: 0, new_count: 0 }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       return new Response(
         JSON.stringify({
           success: false,
@@ -130,8 +146,57 @@ Deno.serve(async (req) => {
 
     console.log(`Total numbers found: ${allNumbers.length}`);
     
-    // Appliquer la pagination
-    const paginatedNumbers = allNumbers.slice(offset, offset + limit);
+    // Vérifier les numéros existants en base
+    const { data: existingNumbers } = await supabase
+      .from('scraped_numbers')
+      .select('phone_number')
+      .in('phone_number', allNumbers.map(n => n.phoneNumber));
+    
+    const existingSet = new Set(existingNumbers?.map(n => n.phone_number) || []);
+    const newNumbers = allNumbers.filter(n => !existingSet.has(n.phoneNumber));
+    
+    console.log(`New numbers to save: ${newNumbers.length}, Already in DB: ${existingSet.size}`);
+    
+    // Enregistrer les nouveaux numéros en base
+    if (newNumbers.length > 0) {
+      const { error: insertError } = await supabase
+        .from('scraped_numbers')
+        .insert(
+          newNumbers.map(n => ({
+            phone_number: n.phoneNumber,
+            raw_number: n.rawNumber,
+            category: n.category,
+            comment: n.comment,
+            operator: 'Inconnu',
+            operator_code: 'UNKNOWN',
+            source: n.id.split('-')[0],
+            date: n.date,
+          }))
+        );
+      
+      if (insertError) {
+        console.error('Error inserting numbers:', insertError);
+      } else {
+        console.log(`Successfully saved ${newNumbers.length} new numbers to database`);
+      }
+    }
+    
+    // Si c'est un auto_scrape, retourner succès avec le nombre de nouveaux numéros
+    if (auto_scrape) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: newNumbers, 
+          total: allNumbers.length,
+          new_count: newNumbers.length,
+          existing_count: existingSet.size
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Appliquer la pagination pour les requêtes manuelles
+    const paginatedNumbers = newNumbers.slice(offset, offset + limit);
     
     console.log(`Returning ${paginatedNumbers.length} scraped numbers`);
 
@@ -139,7 +204,9 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         data: paginatedNumbers,
-        total: allNumbers.length,
+        total: newNumbers.length,
+        new_count: newNumbers.length,
+        existing_count: existingSet.size,
         offset,
         limit,
       }),

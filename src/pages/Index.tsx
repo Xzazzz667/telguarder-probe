@@ -5,6 +5,7 @@ import { ResultsTable } from '@/components/ResultsTable';
 import { StatsPanel } from '@/components/StatsPanel';
 import { operatorMatcher } from '@/utils/operatorMatcher';
 import { loadOperatorRanges, loadOperatorIdentities } from '@/utils/csvLoader';
+import { DatabaseService } from '@/services/DatabaseService';
 import { toast } from 'sonner';
 import { Loader2, Phone } from 'lucide-react';
 
@@ -27,10 +28,20 @@ const Index = () => {
         operatorMatcher.setRanges(ranges);
         operatorMatcher.setIdentities(identities);
         
-        toast.success(`Données ARCEP chargées: ${ranges.length} tranches, ${identities.length} opérateurs`);
+        // Charger les numéros depuis la base de données
+        const numbers = await DatabaseService.getAllNumbers();
+        
+        // Mettre à jour les opérateurs si nécessaire
+        await DatabaseService.updateOperators(numbers);
+        
+        // Recharger les numéros avec les opérateurs mis à jour
+        const updatedNumbers = await DatabaseService.getAllNumbers();
+        setScrapedData(updatedNumbers);
+        
+        toast.success(`Données chargées: ${ranges.length} tranches, ${identities.length} opérateurs, ${updatedNumbers.length} numéros`);
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error);
-        toast.error('Erreur lors du chargement des données ARCEP');
+        toast.error('Erreur lors du chargement des données');
       } finally {
         setIsLoadingData(false);
       }
@@ -39,17 +50,12 @@ const Index = () => {
     loadData();
   }, []);
 
-  const handleScrapingComplete = (data: ScrapedNumber[], append: boolean = false) => {
-    // Match operators for all numbers
-    const matchedData = operatorMatcher.matchNumbers(data);
+  const handleScrapingComplete = async (data: ScrapedNumber[], append: boolean = false) => {
+    // Recharger toutes les données depuis la base de données
+    const allNumbers = await DatabaseService.getAllNumbers();
+    setScrapedData(allNumbers);
     
-    if (append) {
-      // Ajouter aux données existantes
-      setScrapedData(prev => [...prev, ...matchedData]);
-    } else {
-      // Remplacer les données
-      setScrapedData(matchedData);
-    }
+    toast.success(`${data.length} nouveaux numéros ajoutés, total: ${allNumbers.length}`);
   };
 
   if (isLoadingData) {
