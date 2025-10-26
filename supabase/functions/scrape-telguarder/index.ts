@@ -21,7 +21,9 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
   const allNumbers: ScrapedNumber[] = [];
   const seenNumbers = new Set<string>();
   const PER_SOURCE_LIMIT = 100;
-  const phoneRegex = /(?<!\d)(?:\+?33|0033)\s*[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9]\d{8}(?!\d)/g;
+  
+  // Pattern pour les numéros français - on crée des instances séparées pour éviter les problèmes de state
+  const phonePattern = /(?<!\d)(?:\+?33|0033)\s*[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9]\d{8}(?!\d)/;
 
   const normalizeFrenchNumber = (input: string): string | null => {
     const digits = input.replace(/[^\d]/g, '');
@@ -109,7 +111,8 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
     
     for (const line of lines) {
       const hasDate = patterns.some(pattern => pattern.test(line));
-      const hasPhone = phoneRegex.test(line);
+      // Créer une nouvelle regex pour chaque test pour éviter les problèmes de state
+      const hasPhone = new RegExp(phonePattern).test(line);
       
       if (hasDate || (isLenientSource && hasPhone)) {
         todayLines.push(line);
@@ -121,9 +124,9 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
     // Extraire les numéros de téléphone des lignes filtrées
     const content = todayLines.join('\n');
     
-    // Reset regex pour s'assurer qu'elle fonctionne bien
-    phoneRegex.lastIndex = 0;
-    const matches = [...content.matchAll(phoneRegex)];
+    // Créer une nouvelle regex avec le flag global pour matchAll
+    const phoneRegexGlobal = new RegExp(phonePattern, 'g');
+    const matches = [...content.matchAll(phoneRegexGlobal)];
     
     console.log(`Found ${matches.length} phone number matches in ${source}`);
     
