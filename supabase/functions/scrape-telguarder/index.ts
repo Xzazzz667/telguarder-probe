@@ -269,34 +269,18 @@ Deno.serve(async (req) => {
       }
     }
     
-    // Si c'est un auto_scrape, retourner succès avec le nombre de nouveaux numéros
-    if (auto_scrape) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          data: newNumbers, 
-          total: allNumbers.length,
-          new_count: newNumbers.length,
-          existing_count: existingSet.size
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    // Appliquer la pagination pour les requêtes manuelles
-    const paginatedNumbers = newNumbers.slice(offset, offset + limit);
-    
-    console.log(`Returning ${paginatedNumbers.length} scraped numbers`);
+    // Retourner tous les nouveaux numéros (pas de pagination côté serveur)
+    // Le client rechargera toutes les données depuis la base de toute façon
+    console.log(`Returning ${newNumbers.length} scraped numbers`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        data: paginatedNumbers,
-        total: newNumbers.length,
+        data: newNumbers,
+        total: allNumbers.length,
         new_count: newNumbers.length,
         existing_count: existingSet.size,
-        offset,
-        limit,
+        auto_scrape: auto_scrape || false,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

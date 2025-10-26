@@ -29,27 +29,22 @@ export function ScrapingForm({ onScrapingComplete, currentDataCount }: ScrapingF
       // Import dynamically to avoid build issues
       const { FirecrawlService } = await import('@/services/FirecrawlService');
       
-      // Déterminer le nombre de numéros à extraire
-      // Premier clic : 1000, deuxième clic : 1000 de plus (total 2000), etc.
-      const isFirstScraping = currentDataCount === 0;
-      const limit = 1000;
-      const offset = currentDataCount;
-      
-      const data = await FirecrawlService.scrapeTelguarder(limit, offset, (current, total) => {
+      // Lancer le scraping (qui enregistrera automatiquement en base)
+      const data = await FirecrawlService.scrapeTelguarder(1000, 0, (current, total) => {
         setCurrentCount(current);
         setTotalCount(total);
         setProgress((current / total) * 100);
       });
 
-      // Si c'est la première extraction, remplacer. Sinon, ajouter.
-      onScrapingComplete(data, !isFirstScraping);
+      // Les données sont déjà en base, on recharge tout
+      onScrapingComplete(data, false);
       
       setScrapingRound(scrapingRound + 1);
       
-      if (isFirstScraping) {
-        toast.success(`${data.length} numéros extraits avec succès`);
+      if (data.length === 0) {
+        toast.info('Aucun nouveau numéro trouvé (tous les numéros du jour sont déjà en base)');
       } else {
-        toast.success(`${data.length} numéros supplémentaires ajoutés (Total: ${currentDataCount + data.length})`);
+        toast.success(`${data.length} nouveaux numéros ajoutés à la base de données`);
       }
     } catch (error) {
       console.error('Erreur lors du scraping:', error);
@@ -110,15 +105,10 @@ export function ScrapingForm({ onScrapingComplete, currentDataCount }: ScrapingF
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Scraping en cours...
             </>
-          ) : currentDataCount === 0 ? (
-            <>
-              <Database className="mr-2 h-4 w-4" />
-              Scraper les 1000 premiers numéros
-            </>
           ) : (
             <>
-              <Plus className="mr-2 h-4 w-4" />
-              Charger 1000 numéros supplémentaires
+              <Database className="mr-2 h-4 w-4" />
+              Scraper les nouveaux numéros du jour
             </>
           )}
         </Button>
