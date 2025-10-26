@@ -32,9 +32,13 @@ export class DatabaseService {
   static async updateOperators(numbers: ScrapedNumber[]): Promise<void> {
     const unknownNumbers = numbers.filter(n => n.operator === 'Inconnu');
     
-    if (unknownNumbers.length === 0) return;
+    if (unknownNumbers.length === 0) {
+      console.log('No unknown operators to update');
+      return;
+    }
 
-    console.log(`Updating operators for ${unknownNumbers.length} numbers...`);
+    console.log(`🔍 Updating operators for ${unknownNumbers.length} numbers...`);
+    console.log(`📞 Sample numbers to match:`, unknownNumbers.slice(0, 3).map(n => n.phoneNumber));
 
     // Matcher les opérateurs
     const matched = operatorMatcher.matchNumbers(unknownNumbers);
@@ -48,18 +52,25 @@ export class DatabaseService {
         operator_code: n.operatorCode,
       }));
 
+    console.log(`✅ Successfully matched ${updates.length}/${unknownNumbers.length} operators`);
+
     if (updates.length > 0) {
+      let successCount = 0;
       for (const update of updates) {
-        await supabase
+        const { error } = await supabase
           .from('scraped_numbers')
           .update({
             operator: update.operator,
             operator_code: update.operator_code,
           })
           .eq('id', update.id);
+        
+        if (!error) successCount++;
       }
       
-      console.log(`Successfully updated ${updates.length} operators`);
+      console.log(`💾 Successfully saved ${successCount} operator updates to database`);
+    } else {
+      console.warn('⚠️ No operators could be matched. Check CSV data loading.');
     }
   }
 }

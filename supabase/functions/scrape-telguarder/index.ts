@@ -20,10 +20,8 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
   
   const allNumbers: ScrapedNumber[] = [];
   const seenNumbers = new Set<string>();
-  // Match FR numbers in national or international form and avoid partial captures
   const phoneRegex = /(?<!\d)(?:\+?33|0033)\s*[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9](?:[\s.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9]\d{8}(?!\d)/g;
 
-  // Normalize to French national format: 0XXXXXXXXX
   const normalizeFrenchNumber = (input: string): string | null => {
     const digits = input.replace(/[^\d]/g, '');
     if (digits.startsWith('0033')) {
@@ -38,49 +36,72 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
     return null;
   };
 
+  // Patterns de date par source pour filtrer uniquement les numéros du jour
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const [year, month, day] = today.split('-');
+  
+  const datePatterns: Record<string, RegExp[]> = {
+    'telguarder': [new RegExp(`${year}\\.${month}\\.${day}`)],
+    'tellows': [new RegExp(`${day}/${month}/${year}`)],
+    'slickly': [new RegExp(`${year}-${month}-${day}`)],
+    'numeroinconnu': [new RegExp(`${day}/${month}/${year}`)],
+    'callfilter': [/il y a \d+ heures?/i, /aujourd'hui/i, /à l'instant/i]
+  };
+
   try {
     const firecrawl = new FirecrawlApp({ apiKey });
     
-    // Un seul crawl de 50 pages pour éviter le timeout
-    console.log(`Starting crawl for ${source}...`);
+    // Scraper uniquement la première page
+    console.log(`Starting scrape for ${source} (first page only)...`);
     
-    const crawlResult = await firecrawl.crawlUrl(url, {
-      limit: 50,
-      scrapeOptions: {
-        formats: ['markdown', 'html'],
-      },
+    const scrapeResult = await firecrawl.scrapeUrl(url, {
+      formats: ['markdown', 'html'],
     });
 
-    if (!crawlResult.success) {
-      console.error(`Failed to crawl ${url}`);
+    if (!scrapeResult.success) {
+      console.error(`Failed to scrape ${url}`);
       return [];
     }
 
-    const pages = crawlResult.data || [];
-    console.log(`Crawled ${pages.length} pages from ${source}`);
+    const html = scrapeResult.html || '';
+    const markdown = scrapeResult.markdown || '';
+    console.log(`Scraped ${source}, content length: ${html.length + markdown.length}`);
     
-    for (const page of pages) {
-      const html = page.html || '';
-      const matches = html.match(phoneRegex) || [];
-      
-      for (const rawNumber of matches) {
-        const normalized = normalizeFrenchNumber(rawNumber);
-        if (!normalized) continue;
-        if (!seenNumbers.has(normalized)) {
-          seenNumbers.add(normalized);
-          allNumbers.push({
-            id: `${source}-${allNumbers.length + 1}`,
-            phoneNumber: normalized,
-            rawNumber,
-            category: source === 'telguarder' ? 'Télémarketing' : 'Spam signalé',
-            comment: `Crawled from ${page.url || url}`,
-            date: new Date().toISOString().split('T')[0],
-          });
-        }
+    // Extraire les lignes contenant la date du jour
+    const lines = (html + '\n' + markdown).split('\n');
+    const todayLines: string[] = [];
+    const patterns = datePatterns[source] || [];
+    
+    for (const line of lines) {
+      if (patterns.some(pattern => pattern.test(line))) {
+        todayLines.push(line);
       }
     }
     
-    console.log(`Found ${allNumbers.length} unique phone numbers on ${source}`);
+    console.log(`Found ${todayLines.length} lines with today's date in ${source}`);
+    
+    // Extraire les numéros de téléphone des lignes filtrées
+    const content = todayLines.join('\n');
+    const matches = content.match(phoneRegex) || [];
+    
+    for (const rawNumber of matches) {
+      const normalized = normalizeFrenchNumber(rawNumber);
+      if (!normalized) continue;
+      if (!seenNumbers.has(normalized)) {
+        seenNumbers.add(normalized);
+        allNumbers.push({
+          id: `${source}-${allNumbers.length + 1}`,
+          phoneNumber: normalized,
+          rawNumber,
+          category: source === 'telguarder' ? 'Télémarketing' : 'Spam signalé',
+          comment: `Crawled from ${url}`,
+          date: today,
+        });
+      }
+    }
+    
+    console.log(`Found ${allNumbers.length} unique phone numbers from today on ${source}`);
     return allNumbers;
   } catch (error) {
     console.error(`Error crawling ${url}:`, error);

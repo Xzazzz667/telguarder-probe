@@ -27,6 +27,68 @@ interface ResultsTableProps {
 
 const ITEMS_PER_PAGE = 50;
 
+type PeriodFilter = 'today' | 'this_week' | 'this_month' | 'this_quarter' | 'this_year' | 
+                    'yesterday' | 'last_week' | 'last_month' | 'last_quarter' | 'last_year' | 'custom' | 'all';
+
+const getPeriodDates = (period: PeriodFilter): { from: Date; to: Date } | null => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  switch (period) {
+    case 'today':
+      return { from: today, to: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    
+    case 'yesterday':
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { from: yesterday, to: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    
+    case 'this_week':
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay() + 1); // Lundi
+      return { from: startOfWeek, to: now };
+    
+    case 'last_week':
+      const lastWeekStart = new Date(today);
+      lastWeekStart.setDate(today.getDate() - today.getDay() - 6);
+      const lastWeekEnd = new Date(lastWeekStart);
+      lastWeekEnd.setDate(lastWeekEnd.getDate() + 6);
+      return { from: lastWeekStart, to: lastWeekEnd };
+    
+    case 'this_month':
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { from: startOfMonth, to: now };
+    
+    case 'last_month':
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { from: lastMonthStart, to: lastMonthEnd };
+    
+    case 'this_quarter':
+      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      const startOfQuarter = new Date(now.getFullYear(), quarterStartMonth, 1);
+      return { from: startOfQuarter, to: now };
+    
+    case 'last_quarter':
+      const lastQuarterStartMonth = Math.floor(now.getMonth() / 3) * 3 - 3;
+      const lastQuarterStart = new Date(now.getFullYear(), lastQuarterStartMonth, 1);
+      const lastQuarterEnd = new Date(now.getFullYear(), lastQuarterStartMonth + 3, 0);
+      return { from: lastQuarterStart, to: lastQuarterEnd };
+    
+    case 'this_year':
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      return { from: startOfYear, to: now };
+    
+    case 'last_year':
+      const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
+      const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31);
+      return { from: lastYearStart, to: lastYearEnd };
+    
+    default:
+      return null;
+  }
+};
+
 export function ResultsTable({ data }: ResultsTableProps) {
   const [filters, setFilters] = useState<FilterState>({
     operator: 'all',
@@ -35,6 +97,7 @@ export function ResultsTable({ data }: ResultsTableProps) {
     dateFrom: '',
     dateTo: '',
   });
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortColumn, setSortColumn] = useState<keyof ScrapedNumber>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -54,7 +117,28 @@ export function ResultsTable({ data }: ResultsTableProps) {
   const filteredData = useMemo(() => {
     let result = [...data];
 
-    // Apply filters
+    // Apply period filter
+    if (periodFilter !== 'all') {
+      const periodDates = getPeriodDates(periodFilter);
+      if (periodDates) {
+        result = result.filter(item => {
+          const itemDate = new Date(item.date);
+          return itemDate >= periodDates.from && itemDate <= periodDates.to;
+        });
+      }
+    }
+
+    // Apply custom date range if in custom mode
+    if (periodFilter === 'custom') {
+      if (filters.dateFrom) {
+        result = result.filter(item => item.date >= filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        result = result.filter(item => item.date <= filters.dateTo);
+      }
+    }
+
+    // Apply other filters
     if (filters.operator !== 'all') {
       result = result.filter(item => item.operator === filters.operator);
     }
@@ -79,7 +163,7 @@ export function ResultsTable({ data }: ResultsTableProps) {
     });
 
     return result;
-  }, [data, filters, sortColumn, sortDirection]);
+  }, [data, filters, periodFilter, sortColumn, sortDirection]);
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
@@ -111,6 +195,56 @@ export function ResultsTable({ data }: ResultsTableProps) {
       {/* Filters */}
       <div className="rounded-xl border bg-card p-6 shadow-[var(--shadow-md)]">
         <h3 className="mb-4 text-lg font-semibold text-foreground">Filtres et recherche</h3>
+        
+        {/* Période filter */}
+        <div className="mb-4">
+          <label className="text-sm font-medium text-foreground">Période</label>
+          <Select
+            value={periodFilter}
+            onValueChange={(value: PeriodFilter) => setPeriodFilter(value)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les périodes</SelectItem>
+              <SelectItem value="today">Aujourd'hui</SelectItem>
+              <SelectItem value="this_week">Cette semaine</SelectItem>
+              <SelectItem value="this_month">Ce mois</SelectItem>
+              <SelectItem value="this_quarter">Ce trimestre</SelectItem>
+              <SelectItem value="this_year">Cette année</SelectItem>
+              <SelectItem value="yesterday">Hier</SelectItem>
+              <SelectItem value="last_week">Semaine précédente</SelectItem>
+              <SelectItem value="last_month">Mois précédent</SelectItem>
+              <SelectItem value="last_quarter">Trimestre précédent</SelectItem>
+              <SelectItem value="last_year">Année précédente</SelectItem>
+              <SelectItem value="custom">Personnaliser</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Custom date range (shown only when custom is selected) */}
+        {periodFilter === 'custom' && (
+          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Date de début</label>
+              <Input
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Date de fin</label>
+              <Input
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Recherche</label>
