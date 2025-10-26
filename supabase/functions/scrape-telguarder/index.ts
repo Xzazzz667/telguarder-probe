@@ -108,20 +108,26 @@ Deno.serve(async (req) => {
       throw new Error('FIRECRAWL_API_KEY not configured. Please add your Firecrawl API key in the backend secrets.');
     }
 
-    // Crawler les deux sites en parallèle avec timeout par site
+    // Crawler les cinq sites en parallèle avec timeout par site
     const telguarderP = crawlWithFirecrawl('https://www.telguarder.com/fr', firecrawlApiKey, 'telguarder');
     const tellowsP = crawlWithFirecrawl('https://www.tellows.fr/stats', firecrawlApiKey, 'tellows');
+    const slicklyP = crawlWithFirecrawl('https://slick.ly/fr/', firecrawlApiKey, 'slickly');
+    const numeroInconnuP = crawlWithFirecrawl('https://www.numeroinconnu.fr/', firecrawlApiKey, 'numeroinconnu');
+    const callfilterP = crawlWithFirecrawl('https://callfilter.app/', firecrawlApiKey, 'callfilter');
 
     // Timeout util - retourne une liste vide si le site prend trop de temps
     const timeout = (ms: number) => new Promise<ScrapedNumber[]>((resolve) => setTimeout(() => resolve([]), ms));
 
-    const [telguarderNumbers, tellowsNumbers] = await Promise.all([
+    const [telguarderNumbers, tellowsNumbers, slicklyNumbers, numeroInconnuNumbers, callfilterNumbers] = await Promise.all([
       Promise.race([telguarderP, timeout(25000)]),
       Promise.race([tellowsP, timeout(25000)]),
+      Promise.race([slicklyP, timeout(25000)]),
+      Promise.race([numeroInconnuP, timeout(25000)]),
+      Promise.race([callfilterP, timeout(25000)]),
     ]);
     
     // Combiner les résultats
-    const allNumbers = [...telguarderNumbers, ...tellowsNumbers];
+    const allNumbers = [...telguarderNumbers, ...tellowsNumbers, ...slicklyNumbers, ...numeroInconnuNumbers, ...callfilterNumbers];
 
     if (allNumbers.length === 0) {
       console.warn('No phone numbers were found on either website (timeout or site blocked)');
