@@ -14,7 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      scraped_numbers: {
+        Row: {
+          category: string
+          comment: string | null
+          created_at: string
+          date: string
+          id: string
+          operator: string | null
+          operator_code: string | null
+          phone_number: string
+          raw_number: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          comment?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          operator?: string | null
+          operator_code?: string | null
+          phone_number: string
+          raw_number: string
+          source: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          comment?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          operator?: string | null
+          operator_code?: string | null
+          phone_number?: string
+          raw_number?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
