@@ -30,7 +30,7 @@ export class DatabaseService {
 
   // Mettre à jour les opérateurs des numéros qui ont "Inconnu"
   static async updateOperators(numbers: ScrapedNumber[]): Promise<void> {
-    const unknownNumbers = numbers.filter(n => n.operator === 'Inconnu');
+    const unknownNumbers = numbers.filter(n => !n.operator || n.operator === 'Inconnu');
     
     if (unknownNumbers.length === 0) {
       console.log('✅ No unknown operators to update');
@@ -65,21 +65,16 @@ export class DatabaseService {
     console.log(`❌ Still unknown: ${unknownNumbers.length - updates.length} numbers`);
 
     if (updates.length > 0) {
-      let successCount = 0;
-      for (const update of updates) {
-        const { error } = await supabase
-          .from('scraped_numbers')
-          .update({
-            operator: update.operator,
-            operator_code: update.operator_code,
-          })
-          .eq('id', update.id);
-        
-        if (!error) successCount++;
-        else console.error('❌ Update error:', error);
+      // Use backend function with service role to bypass RLS for secure updates
+      const { data, error } = await supabase.functions.invoke('update-operators', {
+        body: { updates },
+      });
+
+      if (error) {
+        console.error('❌ Edge function update-operators failed:', error);
+      } else {
+        console.log('💾 Operator updates saved via edge function:', data);
       }
-      
-      console.log(`💾 Successfully saved ${successCount} operator updates to database`);
     } else {
       console.warn('⚠️ No operators could be matched. Possible issues:');
       console.warn('  - CSV data not loaded correctly');
