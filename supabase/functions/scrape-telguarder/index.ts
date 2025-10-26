@@ -39,6 +39,32 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
     return null;
   };
 
+  const stripTags = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const parseDateFromContent = (content: string, fallback: string): string => {
+    // dd/mm/yyyy
+    const dmy = content.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (dmy) {
+      const d = dmy[1].padStart(2, '0');
+      const m = dmy[2].padStart(2, '0');
+      const y = dmy[3];
+      return `${y}-${m}-${d}`;
+    }
+    // yyyy-mm-dd
+    const ymd = content.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (ymd) {
+      const y = ymd[1];
+      const m = ymd[2].padStart(2, '0');
+      const d = ymd[3].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    // aujourd'hui / il y a X minutes|heures => aujourd'hui
+    if (/aujourd'hui|à l'instant|il y a \d+\s*(minute|heure)s?/i.test(content)) {
+      return fallback;
+    }
+    return fallback;
+  };
+
   // Patterns de date par source - plus permissifs pour capturer les numéros récents
   const now = new Date();
   const today = now.toISOString().split('T')[0];
@@ -139,6 +165,7 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
 
     console.log(`Total candidate numbers before normalization: ${candidates.length}`);
 
+    // 1) Ajouter les numéros directement trouvés sur la page principale
     for (const rawNumber of candidates) {
       const normalized = normalizeFrenchNumber(rawNumber);
       if (!normalized) continue;
@@ -166,6 +193,65 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
         if (allNumbers.length >= PER_SOURCE_LIMIT) {
           console.log(`Reached per-source limit (${PER_SOURCE_LIMIT}) for ${source}`);
           break;
+        }
+      }
+    }
+
+    // 2) POUR slickly & callfilter: suivre les liens de détail (le numéro est cliquable) pour récupérer commentaire + date
+    if ((source === 'slickly' || source === 'callfilter') && allNumbers.length < PER_SOURCE_LIMIT) {
+      const anchorRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gis;
+      const detailLinksSet = new Set<string>();
+      let match: RegExpExecArray | null;
+      while ((match = anchorRegex.exec(html))) {
+        const href = match[1];
+        const inner = stripTags(match[2] || '');
+        if (new RegExp(phonePattern).test(inner)) {
+          try {
+            const abs = new URL(href, url).toString();
+            detailLinksSet.add(abs);
+          } catch (_) { /* ignore bad URLs */ }
+        }
+      }
+
+      const detailLinks = Array.from(detailLinksSet).slice(0, 15);
+      console.log(`Found ${detailLinks.length} detail links on ${source}`);
+
+      for (const link of detailLinks) {
+        if (allNumbers.length >= PER_SOURCE_LIMIT) break;
+        try {
+          const detail = await firecrawl.scrapeUrl(link, { formats: ['markdown','html'] });
+          if (!detail.success) continue;
+          const dhtml = detail.html || '';
+          const dmd = detail.markdown || '';
+          const dcontent = dhtml + '\n' + dmd;
+
+          const detailPhones = [...dcontent.matchAll(phoneRegexGlobal)];
+          for (const m of detailPhones) {
+            const raw = m[0];
+            const normalized = normalizeFrenchNumber(raw);
+            if (!normalized) continue;
+            if (seenNumbers.has(normalized)) continue;
+
+            let category = source === 'callfilter' ? 'Spam détecté' : 'Appel indésirable';
+            // Commentaire: premier paragraphe significatif ou fallback sur l'URL
+            const p = dhtml.match(/<p[^>]*>(.*?)<\/p>/is);
+            let comment = p && p[1] ? stripTags(p[1]).slice(0, 200) : `Détails: ${link}`;
+            const date = parseDateFromContent(dcontent, today);
+
+            allNumbers.push({
+              id: `${source}-${allNumbers.length + 1}`,
+              phoneNumber: normalized,
+              rawNumber: raw,
+              category,
+              comment,
+              date,
+            });
+
+            seenNumbers.add(normalized);
+            if (allNumbers.length >= PER_SOURCE_LIMIT) break;
+          }
+        } catch (e) {
+          console.warn(`Failed to fetch detail ${link}:`, e);
         }
       }
     }
@@ -242,16 +328,28 @@ Deno.serve(async (req) => {
 
     console.log(`Total numbers found: ${allNumbers.length}`);
     
-    // Vérifier les numéros existants en base
-    const { data: existingNumbers } = await supabase
+    // Vérifier les numéros existants en base (par couple téléphone+source+date)
+    const phones = allNumbers.map(n => n.phoneNumber);
+    const { data: existingRows, error: existingErr } = await supabase
       .from('scraped_numbers')
-      .select('phone_number')
-      .in('phone_number', allNumbers.map(n => n.phoneNumber));
-    
-    const existingSet = new Set(existingNumbers?.map(n => n.phone_number) || []);
-    const newNumbers = allNumbers.filter(n => !existingSet.has(n.phoneNumber));
-    
-    console.log(`New numbers to save: ${newNumbers.length}, Already in DB: ${existingSet.size}`);
+      .select('phone_number, source, date')
+      .in('phone_number', phones);
+
+    if (existingErr) {
+      console.warn('Error checking existing numbers (continuing anyway):', existingErr);
+    }
+
+    const existingKeySet = new Set(
+      (existingRows || []).map(r => `${r.phone_number}|${r.source}|${r.date}`)
+    );
+
+    const newNumbers = allNumbers.filter(n => {
+      const src = n.id.split('-')[0];
+      const key = `${n.phoneNumber}|${src}|${n.date}`;
+      return !existingKeySet.has(key);
+    });
+
+    console.log(`New rows to save: ${newNumbers.length}, Existing rows (same phone+source+date): ${existingKeySet.size}`);
     
     // Enregistrer les nouveaux numéros en base
     if (newNumbers.length > 0) {
@@ -273,7 +371,7 @@ Deno.serve(async (req) => {
       if (insertError) {
         console.error('Error inserting numbers:', insertError);
       } else {
-        console.log(`Successfully saved ${newNumbers.length} new numbers to database`);
+        console.log(`Successfully saved ${newNumbers.length} new rows to database`);
       }
     }
     
@@ -287,7 +385,7 @@ Deno.serve(async (req) => {
         data: newNumbers,
         total: allNumbers.length,
         new_count: newNumbers.length,
-        existing_count: existingSet.size,
+        existing_count: existingKeySet.size,
         auto_scrape: auto_scrape || false,
       }),
       {
