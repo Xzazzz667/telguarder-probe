@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ScrapedNumber, FilterState } from '@/types';
+import { PeriodFilter, getPeriodDates } from '@/types/filters';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,73 +24,13 @@ import { toast } from 'sonner';
 
 interface ResultsTableProps {
   data: ScrapedNumber[];
+  periodFilter: PeriodFilter;
+  onPeriodFilterChange: (period: PeriodFilter) => void;
 }
 
 const ITEMS_PER_PAGE = 50;
 
-type PeriodFilter = 'today' | 'this_week' | 'this_month' | 'this_quarter' | 'this_year' | 
-                    'yesterday' | 'last_week' | 'last_month' | 'last_quarter' | 'last_year' | 'custom' | 'all';
-
-const getPeriodDates = (period: PeriodFilter): { from: Date; to: Date } | null => {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  
-  switch (period) {
-    case 'today':
-      return { from: today, to: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) };
-    
-    case 'yesterday':
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      return { from: yesterday, to: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1) };
-    
-    case 'this_week':
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay() + 1); // Lundi
-      return { from: startOfWeek, to: now };
-    
-    case 'last_week':
-      const lastWeekStart = new Date(today);
-      lastWeekStart.setDate(today.getDate() - today.getDay() - 6);
-      const lastWeekEnd = new Date(lastWeekStart);
-      lastWeekEnd.setDate(lastWeekEnd.getDate() + 6);
-      return { from: lastWeekStart, to: lastWeekEnd };
-    
-    case 'this_month':
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { from: startOfMonth, to: now };
-    
-    case 'last_month':
-      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-      return { from: lastMonthStart, to: lastMonthEnd };
-    
-    case 'this_quarter':
-      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-      const startOfQuarter = new Date(now.getFullYear(), quarterStartMonth, 1);
-      return { from: startOfQuarter, to: now };
-    
-    case 'last_quarter':
-      const lastQuarterStartMonth = Math.floor(now.getMonth() / 3) * 3 - 3;
-      const lastQuarterStart = new Date(now.getFullYear(), lastQuarterStartMonth, 1);
-      const lastQuarterEnd = new Date(now.getFullYear(), lastQuarterStartMonth + 3, 0);
-      return { from: lastQuarterStart, to: lastQuarterEnd };
-    
-    case 'this_year':
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
-      return { from: startOfYear, to: now };
-    
-    case 'last_year':
-      const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
-      const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31);
-      return { from: lastYearStart, to: lastYearEnd };
-    
-    default:
-      return null;
-  }
-};
-
-export function ResultsTable({ data }: ResultsTableProps) {
+export function ResultsTable({ data, periodFilter, onPeriodFilterChange }: ResultsTableProps) {
   const [filters, setFilters] = useState<FilterState>({
     operator: 'all',
     category: 'all',
@@ -97,10 +38,14 @@ export function ResultsTable({ data }: ResultsTableProps) {
     dateFrom: '',
     dateTo: '',
   });
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortColumn, setSortColumn] = useState<keyof ScrapedNumber>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [periodFilter, filters]);
 
   // Get unique values for filters
   const operators = useMemo(() => {
@@ -201,7 +146,7 @@ export function ResultsTable({ data }: ResultsTableProps) {
           <label className="text-sm font-medium text-foreground">Période</label>
           <Select
             value={periodFilter}
-            onValueChange={(value: PeriodFilter) => setPeriodFilter(value)}
+            onValueChange={(value: PeriodFilter) => onPeriodFilterChange(value)}
           >
             <SelectTrigger>
               <SelectValue />
@@ -331,6 +276,7 @@ export function ResultsTable({ data }: ResultsTableProps) {
                 >
                   Catégorie {sortColumn === 'category' && (sortDirection === 'asc' ? '↑' : '↓')}
                 </TableHead>
+                <TableHead>Origine</TableHead>
                 <TableHead>Commentaire</TableHead>
                 <TableHead
                   className="cursor-pointer select-none"
@@ -364,7 +310,12 @@ export function ResultsTable({ data }: ResultsTableProps) {
                       {item.category}
                     </span>
                   </TableCell>
-                  <TableCell className="max-w-md truncate text-sm">{item.comment}</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-mono font-medium text-secondary-foreground">
+                      {(item as any).source || '-'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="max-w-md truncate text-sm">{item.comment || '-'}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{item.date}</TableCell>
                 </TableRow>
               ))}

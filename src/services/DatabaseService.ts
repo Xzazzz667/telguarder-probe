@@ -25,6 +25,7 @@ export class DatabaseService {
       date: row.date,
       operator: row.operator,
       operatorCode: row.operator_code,
+      source: row.source,
     }));
   }
 

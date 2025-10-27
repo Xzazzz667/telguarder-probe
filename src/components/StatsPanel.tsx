@@ -1,18 +1,33 @@
 import { useMemo } from 'react';
 import { ScrapedNumber } from '@/types';
+import { PeriodFilter, getPeriodDates } from '@/types/filters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart3, TrendingUp, Users, AlertTriangle } from 'lucide-react';
 
 interface StatsPanelProps {
   data: ScrapedNumber[];
+  periodFilter: PeriodFilter;
 }
 
-export function StatsPanel({ data }: StatsPanelProps) {
+export function StatsPanel({ data, periodFilter }: StatsPanelProps) {
   const stats = useMemo(() => {
+    // Filtrer les données selon la période
+    let filteredData = [...data];
+    
+    if (periodFilter !== 'all') {
+      const periodDates = getPeriodDates(periodFilter);
+      if (periodDates) {
+        filteredData = filteredData.filter(item => {
+          const itemDate = new Date(item.date);
+          return itemDate >= periodDates.from && itemDate <= periodDates.to;
+        });
+      }
+    }
+
     const categoryCounts: Record<string, number> = {};
     const operatorCounts: Record<string, number> = {};
 
-    data.forEach(item => {
+    filteredData.forEach(item => {
       categoryCounts[item.category] = (categoryCounts[item.category] || 0) + 1;
       if (item.operator) {
         operatorCounts[item.operator] = (operatorCounts[item.operator] || 0) + 1;
@@ -24,11 +39,11 @@ export function StatsPanel({ data }: StatsPanelProps) {
       .slice(0, 25);
 
     return {
-      total: data.length,
+      total: filteredData.length,
       categoryCounts,
       topOperators,
     };
-  }, [data]);
+  }, [data, periodFilter]);
 
   if (data.length === 0) {
     return null;

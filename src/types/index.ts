@@ -7,6 +7,7 @@ export interface ScrapedNumber {
   date: string;
   operator?: string;
   operatorCode?: string;
+  source?: string;
 }
 
 export interface OperatorRange {

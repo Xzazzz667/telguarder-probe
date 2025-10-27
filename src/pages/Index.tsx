@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ScrapedNumber } from '@/types';
+import { PeriodFilter } from '@/types/filters';
 import { ScrapingForm } from '@/components/ScrapingForm';
 import { ResultsTable } from '@/components/ResultsTable';
 import { StatsPanel } from '@/components/StatsPanel';
@@ -18,6 +19,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [scrapedData, setScrapedData] = useState<ScrapedNumber[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -136,8 +138,12 @@ const Index = () => {
           {/* Results Section */}
           {scrapedData.length > 0 && (
             <>
-              <StatsPanel data={scrapedData} />
-              <ResultsTable data={scrapedData} />
+              <StatsPanel data={scrapedData} periodFilter={periodFilter} />
+              <ResultsTable 
+                data={scrapedData} 
+                periodFilter={periodFilter}
+                onPeriodFilterChange={setPeriodFilter}
+              />
             </>
           )}
 

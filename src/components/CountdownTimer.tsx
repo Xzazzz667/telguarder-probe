@@ -14,16 +14,22 @@ export function CountdownTimer() {
   useEffect(() => {
     const calculateTimeRemaining = (): TimeRemaining => {
       const now = new Date();
+      const currentHour = now.getHours();
       
-      // La routine tourne toutes les heures à la minute 0
-      const nextRun = new Date(now);
+      // Prochaine exécution : 13:00 ou 21:00
+      let nextRun = new Date(now);
       nextRun.setMinutes(0);
       nextRun.setSeconds(0);
       nextRun.setMilliseconds(0);
       
-      // Si on a dépassé l'heure actuelle, passer à l'heure suivante
-      if (nextRun <= now) {
-        nextRun.setHours(nextRun.getHours() + 1);
+      if (currentHour < 13) {
+        nextRun.setHours(13);
+      } else if (currentHour < 21) {
+        nextRun.setHours(21);
+      } else {
+        // Après 21h, prochain run est demain à 13h
+        nextRun.setDate(nextRun.getDate() + 1);
+        nextRun.setHours(13);
       }
       
       const diff = nextRun.getTime() - now.getTime();

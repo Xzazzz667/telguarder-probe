@@ -284,12 +284,21 @@ Deno.serve(async (req) => {
       throw new Error('FIRECRAWL_API_KEY not configured. Please add your Firecrawl API key in the backend secrets.');
     }
 
+    // Configuration des sources avec codes courts et limites
+    const sources = [
+      { name: 'telguarder', code: 'TELG', url: 'https://www.telguarder.com/fr', maxNumbers: 50 },
+      { name: 'tellows', code: 'TELW', url: 'https://www.tellows.fr/', maxNumbers: 50 },
+      { name: 'slickly', code: 'SLIK', url: 'https://slick.ly/fr/', maxNumbers: 50 },
+      { name: 'numeroinconnu', code: 'NUMI', url: 'https://www.numeroinconnu.fr/', maxNumbers: 50 },
+      { name: 'callfilter', code: 'CALF', url: 'https://callfilter.app/', maxNumbers: 50 },
+    ];
+
     // Crawler les cinq sites en parallèle avec timeout par site
-    const telguarderP = crawlWithFirecrawl('https://www.telguarder.com/fr', firecrawlApiKey, 'telguarder');
-    const tellowsP = crawlWithFirecrawl('https://www.tellows.fr/', firecrawlApiKey, 'tellows');
-    const slicklyP = crawlWithFirecrawl('https://slick.ly/fr/', firecrawlApiKey, 'slickly');
-    const numeroInconnuP = crawlWithFirecrawl('https://www.numeroinconnu.fr/', firecrawlApiKey, 'numeroinconnu');
-    const callfilterP = crawlWithFirecrawl('https://callfilter.app/', firecrawlApiKey, 'callfilter');
+    const telguarderP = crawlWithFirecrawl(sources[0].url, firecrawlApiKey, sources[0].name);
+    const tellowsP = crawlWithFirecrawl(sources[1].url, firecrawlApiKey, sources[1].name);
+    const slicklyP = crawlWithFirecrawl(sources[2].url, firecrawlApiKey, sources[2].name);
+    const numeroInconnuP = crawlWithFirecrawl(sources[3].url, firecrawlApiKey, sources[3].name);
+    const callfilterP = crawlWithFirecrawl(sources[4].url, firecrawlApiKey, sources[4].name);
 
     // Timeout util - retourne une liste vide si le site prend trop de temps
     const timeout = (ms: number) => new Promise<ScrapedNumber[]>((resolve) => setTimeout(() => resolve([]), ms));
@@ -302,8 +311,17 @@ Deno.serve(async (req) => {
       Promise.race([callfilterP, timeout(25000)]),
     ]);
     
+    // Limiter chaque source à maxNumbers et ajouter les codes sources
+    const limitedTelguarder = telguarderNumbers.slice(0, sources[0].maxNumbers).map(n => ({ ...n, sourceCode: sources[0].code }));
+    const limitedTellows = tellowsNumbers.slice(0, sources[1].maxNumbers).map(n => ({ ...n, sourceCode: sources[1].code }));
+    const limitedSlickly = slicklyNumbers.slice(0, sources[2].maxNumbers).map(n => ({ ...n, sourceCode: sources[2].code }));
+    const limitedNumeroInconnu = numeroInconnuNumbers.slice(0, sources[3].maxNumbers).map(n => ({ ...n, sourceCode: sources[3].code }));
+    const limitedCallfilter = callfilterNumbers.slice(0, sources[4].maxNumbers).map(n => ({ ...n, sourceCode: sources[4].code }));
+    
+    console.log(`Limited results: TELG=${limitedTelguarder.length}, TELW=${limitedTellows.length}, SLIK=${limitedSlickly.length}, NUMI=${limitedNumeroInconnu.length}, CALF=${limitedCallfilter.length}`);
+    
     // Combiner les résultats
-    const allNumbers = [...telguarderNumbers, ...tellowsNumbers, ...slicklyNumbers, ...numeroInconnuNumbers, ...callfilterNumbers];
+    const allNumbers = [...limitedTelguarder, ...limitedTellows, ...limitedSlickly, ...limitedNumeroInconnu, ...limitedCallfilter];
 
     if (allNumbers.length === 0) {
       console.warn('No phone numbers were found on either website (timeout or site blocked)');
@@ -344,7 +362,7 @@ Deno.serve(async (req) => {
     );
 
     const newNumbers = allNumbers.filter(n => {
-      const src = n.id.split('-')[0];
+      const src = (n as any).sourceCode || n.id.split('-')[0];
       const key = `${n.phoneNumber}|${src}|${n.date}`;
       return !existingKeySet.has(key);
     });
@@ -363,7 +381,7 @@ Deno.serve(async (req) => {
             comment: n.comment,
             operator: 'Inconnu',
             operator_code: 'UNKNOWN',
-            source: n.id.split('-')[0],
+            source: (n as any).sourceCode || n.id.split('-')[0],
             date: n.date,
           }))
         );
