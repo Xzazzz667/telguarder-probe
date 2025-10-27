@@ -289,7 +289,9 @@ export function ResultsTable({ data, periodFilter, onPeriodFilterChange }: Resul
             <TableBody>
               {paginatedData.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="font-mono text-sm">{item.phoneNumber}</TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {item.phoneNumber.startsWith('0') ? '33' + item.phoneNumber.slice(1) : item.phoneNumber}
+                  </TableCell>
                   <TableCell>
                     <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
                       {item.operator || 'Inconnu'}

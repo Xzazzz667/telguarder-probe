@@ -41,6 +41,72 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
 
   const stripTags = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
+  // Extract comment from content based on patterns like [[text]]
+  const extractComment = (content: string, source: string): string => {
+    // Primary: Look for text within double brackets [[...]]
+    const bracketMatch = content.match(/\[\[([^\]]+)\]\]/);
+    if (bracketMatch) {
+      return bracketMatch[1].trim();
+    }
+
+    // Source-specific extraction patterns
+    if (source === 'telguarder') {
+      // Pattern: "Ennuyeux" or category followed by comment, then "Commentaire de l'utilisateur"
+      const patterns = [
+        /(?:Ennuyeux|Attention|Sûr|Télémarketing)\s+([^\n]{10,200}?)\s+Commentaire de l'utilisateur/is,
+        /(?:Ennuyeux|Attention|Sûr|Télémarketing)\s+([^\n]{10,200}?)$/is
+      ];
+      for (const pattern of patterns) {
+        const match = content.match(pattern);
+        if (match) return stripTags(match[1]).trim().slice(0, 200);
+      }
+    }
+
+    if (source === 'callfilter') {
+      // Pattern: "rapporté par Anonyme" followed by comment text, may include "(appel automatisé)"
+      const patterns = [
+        /rapporté par [^\n]+\s+([^\n]{5,300}?)\s+(?:Obtenez|il y a \d+)/is,
+        /télémarketing rapporté[^\n]*\n\s*([^\n]+)/is
+      ];
+      for (const pattern of patterns) {
+        const match = content.match(pattern);
+        if (match) return stripTags(match[1]).trim().slice(0, 200);
+      }
+    }
+
+    if (source === 'numeroinconnu') {
+      // Pattern: After "Google Play" header, look for substantive comment text
+      const patterns = [
+        /Google Play.*?\n\s*([^\n]{15,400}?)(?:\n|Signaler)/is,
+        /Commentaires relatifs.*?\n[^\n]*\n\s*([^\n]{15,400})/is
+      ];
+      for (const pattern of patterns) {
+        const match = content.match(pattern);
+        if (match) {
+          const text = stripTags(match[1]).trim();
+          // Skip if it's just navigation text
+          if (!text.match(/^(Google Play|Astuce|Télécharger)/)) {
+            return text.slice(0, 200);
+          }
+        }
+      }
+    }
+
+    if (source === 'slickly') {
+      // Pattern: Phone number, date, then comment on next line
+      const patterns = [
+        /\d{10}\s*\d{4}-\d{2}-\d{2}\s+([^\n]{10,300}?)(?:\n|\d{10})/is,
+        /\d{2}\s\d{2}\s\d{2}\s\d{2}\s\d{2}\s*\d{4}-\d{2}-\d{2}\s+([^\n]{10,300})/is
+      ];
+      for (const pattern of patterns) {
+        const match = content.match(pattern);
+        if (match) return stripTags(match[1]).trim().slice(0, 200);
+      }
+    }
+
+    return '';
+  };
+
   const parseDateFromContent = (content: string, fallback: string): string => {
     // dd/mm/yyyy
     const dmy = content.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -181,12 +247,15 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
         else if (source === 'numeroinconnu') category = 'Numéro inconnu';
         else if (source === 'callfilter') category = 'Spam détecté';
 
+        // Try to extract comment from the main page content
+        const comment = extractComment(rawContent, source) || `Scraped from ${source}`;
+
         allNumbers.push({
           id: `${source}-${allNumbers.length + 1}`,
           phoneNumber: normalized,
           rawNumber,
           category,
-          comment: `Crawled from ${url}`,
+          comment,
           date: today,
         });
 
@@ -233,9 +302,8 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
             if (seenNumbers.has(normalized)) continue;
 
             let category = source === 'callfilter' ? 'Spam détecté' : 'Appel indésirable';
-            // Commentaire: premier paragraphe significatif ou fallback sur l'URL
-            const p = dhtml.match(/<p[^>]*>(.*?)<\/p>/is);
-            let comment = p && p[1] ? stripTags(p[1]).slice(0, 200) : `Détails: ${link}`;
+            // Extract comment using the new function
+            const comment = extractComment(dcontent, source) || `Détails: ${link}`;
             const date = parseDateFromContent(dcontent, today);
 
             allNumbers.push({

@@ -4,14 +4,20 @@ export function exportToCSV(data: ScrapedNumber[], filename?: string) {
   // Create CSV header
   const headers = ['Numéro', 'Opérateur', 'Catégorie', 'Commentaire', 'Date'];
   
-  // Create CSV rows
-  const rows = data.map(item => [
-    item.phoneNumber,
-    item.operator || 'Inconnu',
-    item.category,
-    `"${item.comment.replace(/"/g, '""')}"`, // Escape quotes in comments
-    item.date
-  ]);
+  // Create CSV rows with normalized phone numbers (international format)
+  const rows = data.map(item => {
+    const normalizedPhone = item.phoneNumber.startsWith('0') 
+      ? '33' + item.phoneNumber.slice(1) 
+      : item.phoneNumber;
+    
+    return [
+      normalizedPhone,
+      item.operator || 'Inconnu',
+      item.category,
+      `"${item.comment.replace(/"/g, '""')}"`, // Escape quotes in comments
+      item.date
+    ];
+  });
 
   // Combine headers and rows
   const csvContent = [
