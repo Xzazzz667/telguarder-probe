@@ -2,3 +2,6 @@ project_id = "adktmoxwxcuslwthadvp"
 
 [functions.scrape-telguarder]
 verify_jwt = false
+
+[functions.delete-recent-numbers]
+verify_jwt = false
