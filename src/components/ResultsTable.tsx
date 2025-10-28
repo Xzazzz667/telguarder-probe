@@ -290,7 +290,14 @@ export function ResultsTable({ data, periodFilter, onPeriodFilterChange }: Resul
               {paginatedData.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-mono text-sm">
-                    {item.phoneNumber.startsWith('0') ? '33' + item.phoneNumber.slice(1) : item.phoneNumber}
+                    <a
+                      href={`https://antispam.orange-telephone.com/fr/antispam/+${item.phoneNumber.startsWith('0') ? '33' + item.phoneNumber.slice(1) : item.phoneNumber}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline hover:text-primary/80 transition-colors"
+                    >
+                      {item.phoneNumber.startsWith('0') ? '33' + item.phoneNumber.slice(1) : item.phoneNumber}
+                    </a>
                   </TableCell>
                   <TableCell>
                     <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
