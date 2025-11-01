@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     }
 
     // Scrape all sources in parallel
-    const [slickly, tellows, telguarder, callfilter, numeroinconnu] = await Promise.all([
+    const [slickly, tellows, telguarder, callfilter, numeroinconnu, orange] = await Promise.all([
       // Slick.ly - try several URL variants
       scrapeWithFallback(
         [
@@ -154,6 +154,13 @@ Deno.serve(async (req) => {
         'NumeroInconnu',
         /\*\*Nombre[\s]+de[\s]+visites?[\s:]*\*\*[\s|]*(\d+)/i
       ),
+      
+      // Orange Antispam - uses international format with +
+      scrapeSite(
+        `https://antispam.orange-telephone.com/fr/antispam/${internationalPlus}`,
+        'Orange',
+        /Signalements?[\s]*(\d+)/i
+      ),
     ]);
 
     results.push(
@@ -161,7 +168,8 @@ Deno.serve(async (req) => {
       { source: 'Tellows', value: tellows },
       { source: 'TelGuarder', value: telguarder },
       { source: 'CallFilter', value: callfilter },
-      { source: 'NumeroInconnu', value: numeroinconnu }
+      { source: 'NumeroInconnu', value: numeroinconnu },
+      { source: 'Orange', value: orange }
     );
 
     console.log('Final results:', results);
