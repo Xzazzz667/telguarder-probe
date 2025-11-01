@@ -128,20 +128,29 @@ export function PhoneSearchModule() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {searchResult.results.map((stat) => (
-                  <TableRow key={stat.source}>
-                    <TableCell className="font-medium">{stat.source}</TableCell>
-                    <TableCell className="text-right">
-                      {stat.value !== null ? (
-                        <span className="font-mono text-lg font-semibold text-primary">
-                          {stat.value.toLocaleString('fr-FR')}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Non disponible</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {searchResult.results.map((stat) => {
+                  const getValueColor = (value: number | null) => {
+                    if (value === null) return 'text-muted-foreground';
+                    if (value < 10) return 'text-green-600 dark:text-green-400';
+                    if (value <= 100) return 'text-orange-600 dark:text-orange-400';
+                    return 'text-red-600 dark:text-red-400';
+                  };
+
+                  return (
+                    <TableRow key={stat.source}>
+                      <TableCell className="font-medium">{stat.source}</TableCell>
+                      <TableCell className="text-right">
+                        {stat.value !== null ? (
+                          <span className={`font-mono text-lg font-semibold ${getValueColor(stat.value)}`}>
+                            {stat.value.toLocaleString('fr-FR')}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Non disponible</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

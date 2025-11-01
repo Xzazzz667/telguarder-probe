@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     }
 
     // Scrape all sources in parallel
-    const [slickly, tellows, telguarder, callfilter, numeroinconnu, orange] = await Promise.all([
+    const [slickly, tellows, tellowsEval, telguarder, callfilter, numeroinconnu, numeroInconnuComments, orange] = await Promise.all([
       // Slick.ly - try several URL variants
       scrapeWithFallback(
         [
@@ -124,35 +124,51 @@ Deno.serve(async (req) => {
         /Méfiant[\s\(]*(\d+)[\s]*recherches?/i
       ),
       
-      // Tellows - uses French format (0XXXXXXXXX)
+      // Tellows - Recherches (uses French format)
       scrapeSite(
         `https://www.tellows.fr/num/${frenchFormat}`,
         'Tellows',
         /Recherches?[\s:]*(\d+)/i
       ),
       
-      // TelGuarder - try with and without plus
+      // Tellows - Évaluations (same page, different regex)
+      scrapeSite(
+        `https://www.tellows.fr/num/${frenchFormat}`,
+        'Tellows (Évaluations)',
+        /Évaluations?[\s:]*(\d+)/i
+      ),
+      
+      // TelGuarder - try multiple URL patterns
       scrapeWithFallback(
         [
+          `https://www.telguarder.com/fr/number/${frenchFormat}`,
           `https://www.telguarder.com/fr/number/${internationalPlus}`,
-          `https://www.telguarder.com/fr/number/${internationalFormat}`
+          `https://www.telguarder.com/fr/number/${internationalFormat}`,
+          `https://telguarder.com/fr/number/${frenchFormat}`
         ],
         'TelGuarder',
         /(\d+)[\s]*Nombre[\s]+de[\s]+recherches?/i
       ),
       
-      // CallFilter - CORRECTED: uses international format without numero/ prefix
+      // CallFilter - uses international format
       scrapeSite(
         `https://callfilter.app/${internationalFormat}`,
         'CallFilter',
         /(\d+)[\s]*x[\s]*négatives?/i
       ),
       
-      // NumeroInconnu - CORRECTED regex to handle markdown table format
+      // NumeroInconnu - Visites
       scrapeSite(
         `https://www.numeroinconnu.fr/numero/${frenchFormat}`,
         'NumeroInconnu',
         /\*\*Nombre[\s]+de[\s]+visites?[\s:]*\*\*[\s|]*(\d+)/i
+      ),
+      
+      // NumeroInconnu - Commentaires
+      scrapeSite(
+        `https://www.numeroinconnu.fr/numero/${frenchFormat}`,
+        'NumeroInconnu (Commentaires)',
+        /\*\*Nombre[\s]+de[\s]+commentaires?[\s:]*\*\*[\s|]*(\d+)/i
       ),
       
       // Orange Antispam - uses international format with +
@@ -165,10 +181,12 @@ Deno.serve(async (req) => {
 
     results.push(
       { source: 'Slick.ly', value: slickly },
-      { source: 'Tellows', value: tellows },
+      { source: 'Tellows (Recherches)', value: tellows },
+      { source: 'Tellows (Évaluations)', value: tellowsEval },
       { source: 'TelGuarder', value: telguarder },
       { source: 'CallFilter', value: callfilter },
-      { source: 'NumeroInconnu', value: numeroinconnu },
+      { source: 'NumeroInconnu (Visites)', value: numeroinconnu },
+      { source: 'NumeroInconnu (Commentaires)', value: numeroInconnuComments },
       { source: 'Orange', value: orange }
     );
 
