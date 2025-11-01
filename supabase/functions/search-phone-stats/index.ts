@@ -141,18 +141,18 @@ Deno.serve(async (req) => {
         /(\d+)[\s]*Nombre[\s]+de[\s]+recherches?/i
       ),
       
-      // CallFilter - uses French format (0XXXXXXXXX)
+      // CallFilter - CORRECTED: uses international format without numero/ prefix
       scrapeSite(
-        `https://callfilter.app/numero/${frenchFormat}`,
+        `https://callfilter.app/${internationalFormat}`,
         'CallFilter',
         /(\d+)[\s]*x[\s]*négatives?/i
       ),
       
-      // NumeroInconnu - uses French format (0XXXXXXXXX)
+      // NumeroInconnu - CORRECTED regex to handle markdown table format
       scrapeSite(
         `https://www.numeroinconnu.fr/numero/${frenchFormat}`,
         'NumeroInconnu',
-        /Nombre[\s]+de[\s]+visites?[\s:]*(\d+)[\s]*×?/i
+        /\*\*Nombre[\s]+de[\s]+visites?[\s:]*\*\*[\s|]*(\d+)/i
       ),
     ]);
 
