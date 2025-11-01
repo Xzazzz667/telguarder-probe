@@ -33,8 +33,21 @@ Deno.serve(async (req) => {
     }
 
     // Normalize phone number for different formats
-    const normalizedFr = phoneNumber.replace(/^\+33/, '0').replace(/\s/g, '');
-    const international = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+    // Remove any spaces, plus signs, and leading zeros
+    const cleanNumber = phoneNumber.replace(/[\s+]/g, '');
+    
+    // Determine if it starts with country code
+    const startsWithCountryCode = cleanNumber.startsWith('33');
+    
+    // French format (0XXXXXXXXX)
+    const frenchFormat = startsWithCountryCode 
+      ? '0' + cleanNumber.substring(2) 
+      : cleanNumber.startsWith('0') ? cleanNumber : '0' + cleanNumber;
+    
+    // International without + (33XXXXXXXXX)
+    const internationalFormat = startsWithCountryCode 
+      ? cleanNumber 
+      : cleanNumber.startsWith('0') ? '33' + cleanNumber.substring(1) : '33' + cleanNumber;
 
     const results: PhoneStats[] = [];
 
@@ -90,37 +103,37 @@ Deno.serve(async (req) => {
 
     // Scrape all sources in parallel
     const [slickly, tellows, telguarder, callfilter, numeroinconnu] = await Promise.all([
-      // Slick.ly - extract from "Méfiant(X recherches" with flexible whitespace
+      // Slick.ly - uses international format without +
       scrapeSite(
-        `https://slick.ly/fr/numero/${international.replace('+', '')}`,
+        `https://slick.ly/fr/numero/${internationalFormat}`,
         'Slick.ly',
         /Méfiant[\s\(]*(\d+)[\s]*recherches?/i
       ),
       
-      // Tellows - extract from "Recherches: X" with flexible whitespace
+      // Tellows - uses international format with 33 prefix
       scrapeSite(
-        `https://www.tellows.fr/num/${normalizedFr}`,
+        `https://www.tellows.fr/num/${internationalFormat}`,
         'Tellows',
         /Recherches?[\s:]*(\d+)/i
       ),
       
-      // TelGuarder - extract from "X Nombre de recherches" with flexible whitespace
+      // TelGuarder - uses international format without +
       scrapeSite(
-        `https://www.telguarder.com/fr/number/${international.replace('+', '')}`,
+        `https://www.telguarder.com/fr/number/${internationalFormat}`,
         'TelGuarder',
         /(\d+)[\s]*Nombre[\s]+de[\s]+recherches?/i
       ),
       
-      // CallFilter - extract from "Xx négatives" with flexible whitespace
+      // CallFilter - uses French format (0XXXXXXXXX)
       scrapeSite(
-        `https://callfilter.app/numero/${normalizedFr}`,
+        `https://callfilter.app/numero/${frenchFormat}`,
         'CallFilter',
         /(\d+)[\s]*x[\s]*négatives?/i
       ),
       
-      // NumeroInconnu - extract from "Nombre de visites : X×" with flexible whitespace
+      // NumeroInconnu - uses French format (0XXXXXXXXX)
       scrapeSite(
-        `https://www.numeroinconnu.fr/numero/${normalizedFr}`,
+        `https://www.numeroinconnu.fr/numero/${frenchFormat}`,
         'NumeroInconnu',
         /Nombre[\s]+de[\s]+visites?[\s:]*(\d+)[\s]*×?/i
       ),
