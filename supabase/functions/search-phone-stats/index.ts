@@ -49,6 +49,8 @@ Deno.serve(async (req) => {
       ? cleanNumber 
       : cleanNumber.startsWith('0') ? '33' + cleanNumber.substring(1) : '33' + cleanNumber;
 
+    const internationalPlus = `+${internationalFormat}`;
+
     const results: PhoneStats[] = [];
 
     // Helper function to scrape a site
@@ -100,26 +102,41 @@ Deno.serve(async (req) => {
         return null;
       }
     }
+    // Helper to try multiple URLs sequentially
+    async function scrapeWithFallback(urls: string[], sourceName: string, extractPattern: RegExp) {
+      for (const u of urls) {
+        const v = await scrapeSite(u, sourceName, extractPattern);
+        if (v !== null) return v;
+      }
+      return null;
+    }
 
     // Scrape all sources in parallel
     const [slickly, tellows, telguarder, callfilter, numeroinconnu] = await Promise.all([
-      // Slick.ly - uses international format without +
-      scrapeSite(
-        `https://slick.ly/fr/numero/${internationalFormat}`,
+      // Slick.ly - try several URL variants
+      scrapeWithFallback(
+        [
+          `https://slick.ly/fr/numero/${internationalFormat}`,
+          `https://slick.ly/fr/numero/${internationalPlus}`,
+          `https://slick.ly/fr/${internationalFormat}`
+        ],
         'Slick.ly',
         /Méfiant[\s\(]*(\d+)[\s]*recherches?/i
       ),
       
-      // Tellows - uses international format with 33 prefix
+      // Tellows - uses French format (0XXXXXXXXX)
       scrapeSite(
-        `https://www.tellows.fr/num/${internationalFormat}`,
+        `https://www.tellows.fr/num/${frenchFormat}`,
         'Tellows',
         /Recherches?[\s:]*(\d+)/i
       ),
       
-      // TelGuarder - uses international format without +
-      scrapeSite(
-        `https://www.telguarder.com/fr/number/${internationalFormat}`,
+      // TelGuarder - try with and without plus
+      scrapeWithFallback(
+        [
+          `https://www.telguarder.com/fr/number/${internationalPlus}`,
+          `https://www.telguarder.com/fr/number/${internationalFormat}`
+        ],
         'TelGuarder',
         /(\d+)[\s]*Nombre[\s]+de[\s]+recherches?/i
       ),
