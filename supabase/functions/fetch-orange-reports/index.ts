@@ -28,6 +28,9 @@ Deno.serve(async (req) => {
 
     console.log('Starting Orange reports fetch...');
 
+    // Préfixes NPV à traiter
+    const npvPrefixes = ['33162', '33270', '33377', '33424', '33568', '33948'];
+
     // Récupérer les numéros sans signalements (NULL)
     const { data: numbers, error: fetchError } = await supabase
       .from('scraped_numbers')
@@ -58,6 +61,7 @@ Deno.serve(async (req) => {
     let processedCount = 0;
     let successCount = 0;
     let failedCount = 0;
+    let skippedCount = 0;
 
     // Traiter chaque numéro avec un délai de 60 secondes entre chaque requête
     for (const number of numbers) {
@@ -70,6 +74,16 @@ Deno.serve(async (req) => {
           phoneForOrange = phoneForOrange.slice(1);
         } else if (!phoneForOrange.startsWith('33')) {
           phoneForOrange = '33' + phoneForOrange;
+        }
+
+        // Vérifier si le numéro est un NPV (commence par un préfixe NPV)
+        const isNPV = npvPrefixes.some(prefix => phoneForOrange.startsWith(prefix));
+        
+        if (!isNPV) {
+          console.log(`Skipping non-NPV number ${phoneForOrange}`);
+          skippedCount++;
+          processedCount++;
+          continue;
         }
 
         const orangeUrl = `https://antispam.orange-telephone.com/fr/antispam/+${phoneForOrange}`;
@@ -166,7 +180,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Completed: ${successCount} successful, ${failedCount} failed`);
+    console.log(`Completed: ${successCount} successful, ${failedCount} failed, ${skippedCount} skipped (non-NPV)`);
 
     return new Response(
       JSON.stringify({
@@ -174,6 +188,7 @@ Deno.serve(async (req) => {
         processed: processedCount,
         successful: successCount,
         failed: failedCount,
+        skipped: skippedCount,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
