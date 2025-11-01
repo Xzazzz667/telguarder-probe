@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             url: url,
-            formats: ['markdown'],
+            formats: ['markdown', 'html'],
             timeout: 30000,
           }),
         });
@@ -62,18 +62,25 @@ Deno.serve(async (req) => {
         }
 
         const scrapeData = await scrapeResponse.json();
-        const content = scrapeData?.data?.markdown || '';
+        const markdown = scrapeData?.data?.markdown || '';
+        const html = scrapeData?.data?.html || '';
         
-        console.log(`${sourceName} content length:`, content.length);
-
-        const match = content.match(extractPattern);
+        console.log(`${sourceName} content length - markdown: ${markdown.length}, html: ${html.length}`);
+        
+        // Try markdown first, then HTML
+        let match = markdown.match(extractPattern);
+        if (!match && html) {
+          match = html.match(extractPattern);
+        }
+        
         if (match && match[1]) {
-          const value = parseInt(match[1].replace(/\s/g, ''));
+          const value = parseInt(match[1].replace(/[\s\u00A0]/g, ''));
           console.log(`${sourceName} found value:`, value);
           return value;
         }
 
-        console.log(`${sourceName} no match found`);
+        // Log a sample of content for debugging
+        console.log(`${sourceName} no match found. Sample content:`, markdown.substring(0, 500));
         return null;
       } catch (error) {
         console.error(`${sourceName} error:`, error);
@@ -83,39 +90,39 @@ Deno.serve(async (req) => {
 
     // Scrape all sources in parallel
     const [slickly, tellows, telguarder, callfilter, numeroinconnu] = await Promise.all([
-      // Slick.ly - extract from "Méfiant(X recherches"
+      // Slick.ly - extract from "Méfiant(X recherches" with flexible whitespace
       scrapeSite(
         `https://slick.ly/fr/numero/${international.replace('+', '')}`,
         'Slick.ly',
-        /Méfiant\((\d+)\s+recherches/i
+        /Méfiant[\s\(]*(\d+)[\s]*recherches?/i
       ),
       
-      // Tellows - extract from "Recherches: X"
+      // Tellows - extract from "Recherches: X" with flexible whitespace
       scrapeSite(
         `https://www.tellows.fr/num/${normalizedFr}`,
         'Tellows',
-        /Recherches:\s*(\d+)/i
+        /Recherches?[\s:]*(\d+)/i
       ),
       
-      // TelGuarder - extract from "X Nombre de recherches"
+      // TelGuarder - extract from "X Nombre de recherches" with flexible whitespace
       scrapeSite(
         `https://www.telguarder.com/fr/number/${international.replace('+', '')}`,
         'TelGuarder',
-        /(\d+)\s+Nombre de recherches/i
+        /(\d+)[\s]*Nombre[\s]+de[\s]+recherches?/i
       ),
       
-      // CallFilter - extract from "Xx négatives"
+      // CallFilter - extract from "Xx négatives" with flexible whitespace
       scrapeSite(
         `https://callfilter.app/numero/${normalizedFr}`,
         'CallFilter',
-        /(\d+)x\s+négatives/i
+        /(\d+)[\s]*x[\s]*négatives?/i
       ),
       
-      // NumeroInconnu - extract from "Nombre de visites : X×"
+      // NumeroInconnu - extract from "Nombre de visites : X×" with flexible whitespace
       scrapeSite(
         `https://www.numeroinconnu.fr/numero/${normalizedFr}`,
         'NumeroInconnu',
-        /Nombre de visites\s*:\s*(\d+)×/i
+        /Nombre[\s]+de[\s]+visites?[\s:]*(\d+)[\s]*×?/i
       ),
     ]);
 
