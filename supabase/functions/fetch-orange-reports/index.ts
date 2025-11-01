@@ -140,16 +140,38 @@ Deno.serve(async (req) => {
           continue;
         }
         
-        // Extraire le nombre de signalements
-        // Format: "Signalements = 3096" ou "signalements&nbsp;=&nbsp;3096"
-        const signalementMatch = html.match(/signalements\s*(?:=|&nbsp;=&nbsp;)\s*(\d+)/i);
-        
+        // Extraire le nombre de signalements avec plusieurs patterns
         let signalements = 0;
-        if (signalementMatch && signalementMatch[1]) {
-          signalements = parseInt(signalementMatch[1], 10);
-          console.log(`Found ${signalements} reports for ${phoneForOrange}`);
-        } else {
+        
+        // Essayer plusieurs patterns regex
+        const patterns = [
+          /signalements?\s*[=:]\s*(\d+)/i,
+          /signalements?\s*(?:&nbsp;)*[=:]\s*(?:&nbsp;)*(\d+)/i,
+          /signalements?\s*(?:&nbsp;|&#160;)*[=:]\s*(?:&nbsp;|&#160;)*(\d+)/i,
+          /<[^>]*signalements?[^>]*>\s*[=:]\s*(\d+)/i,
+          /signalements?[^\d]*(\d{1,5})/i,
+        ];
+        
+        let matchFound = false;
+        for (const pattern of patterns) {
+          const match = html.match(pattern);
+          if (match && match[1]) {
+            const value = parseInt(match[1], 10);
+            // Vérifier que c'est un nombre raisonnable (pas un ID ou autre)
+            if (value >= 0 && value < 1000000) {
+              signalements = value;
+              matchFound = true;
+              console.log(`Found ${signalements} reports for ${phoneForOrange} using pattern: ${pattern}`);
+              break;
+            }
+          }
+        }
+        
+        if (!matchFound) {
           console.log(`No reports found for ${phoneForOrange}, setting to 0`);
+          // Log un extrait du HTML pour debug
+          const htmlSnippet = html.substring(0, 1000);
+          console.log(`HTML snippet: ${htmlSnippet}`);
         }
 
         // Mettre à jour la base de données
