@@ -248,7 +248,7 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
         else if (source === 'callfilter') category = 'Spam détecté';
 
         // Try to extract comment from the main page content
-        const comment = extractComment(rawContent, source) || `Scraped from ${source}`;
+        const comment = extractComment(rawContent, source) || '';
 
         allNumbers.push({
           id: `${source}-${allNumbers.length + 1}`,
@@ -303,7 +303,7 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
 
             let category = source === 'callfilter' ? 'Spam détecté' : 'Appel indésirable';
             // Extract comment using the new function
-            const comment = extractComment(dcontent, source) || `Détails: ${link}`;
+            const comment = extractComment(dcontent, source) || '';
             const date = parseDateFromContent(dcontent, today);
 
             allNumbers.push({

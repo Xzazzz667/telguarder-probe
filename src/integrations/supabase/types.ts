@@ -25,6 +25,7 @@ export type Database = {
           operator_code: string | null
           phone_number: string
           raw_number: string
+          signalements: number | null
           source: string
           updated_at: string
         }
@@ -38,6 +39,7 @@ export type Database = {
           operator_code?: string | null
           phone_number: string
           raw_number: string
+          signalements?: number | null
           source: string
           updated_at?: string
         }
@@ -51,6 +53,7 @@ export type Database = {
           operator_code?: string | null
           phone_number?: string
           raw_number?: string
+          signalements?: number | null
           source?: string
           updated_at?: string
         }

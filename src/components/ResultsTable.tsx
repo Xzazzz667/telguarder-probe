@@ -280,6 +280,12 @@ export function ResultsTable({ data, periodFilter, onPeriodFilterChange }: Resul
                 <TableHead>Commentaire</TableHead>
                 <TableHead
                   className="cursor-pointer select-none"
+                  onClick={() => handleSort('signalements')}
+                >
+                  Signalements {sortColumn === 'signalements' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none"
                   onClick={() => handleSort('date')}
                 >
                   Date {sortColumn === 'date' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -325,6 +331,21 @@ export function ResultsTable({ data, periodFilter, onPeriodFilterChange }: Resul
                     </span>
                   </TableCell>
                   <TableCell className="max-w-md truncate text-sm">{item.comment || '-'}</TableCell>
+                  <TableCell className="text-center">
+                    {item.signalements !== null && item.signalements !== undefined ? (
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        item.signalements > 1000 
+                          ? 'bg-destructive/10 text-destructive' 
+                          : item.signalements > 100
+                          ? 'bg-orange-500/10 text-orange-600'
+                          : 'bg-accent/10 text-accent'
+                      }`}>
+                        {item.signalements}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{item.date}</TableCell>
                 </TableRow>
               ))}

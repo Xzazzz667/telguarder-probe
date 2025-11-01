@@ -34,9 +34,28 @@ export function StatsPanel({ data, periodFilter }: StatsPanelProps) {
       }
     });
 
+    // Calculer la moyenne des signalements par opérateur
+    const operatorSignalements: Record<string, { total: number; count: number }> = {};
+    
+    filteredData.forEach(item => {
+      if (item.operator && item.signalements !== null && item.signalements !== undefined) {
+        if (!operatorSignalements[item.operator]) {
+          operatorSignalements[item.operator] = { total: 0, count: 0 };
+        }
+        operatorSignalements[item.operator].total += item.signalements;
+        operatorSignalements[item.operator].count += 1;
+      }
+    });
+
     const topOperators = Object.entries(operatorCounts)
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 25);
+      .slice(0, 25)
+      .map(([operator, count]) => {
+        const avgSignalements = operatorSignalements[operator]
+          ? Math.round(operatorSignalements[operator].total / operatorSignalements[operator].count)
+          : 0;
+        return [operator, count, avgSignalements] as [string, number, number];
+      });
 
     return {
       total: filteredData.length,
@@ -150,7 +169,7 @@ export function StatsPanel({ data, periodFilter }: StatsPanelProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {stats.topOperators.map(([operator, count], index) => {
+            {stats.topOperators.map(([operator, count, avgSignalements], index) => {
               const percentage = ((count / stats.total) * 100).toFixed(1);
               return (
                 <div key={operator} className="flex items-center gap-3">
@@ -160,9 +179,14 @@ export function StatsPanel({ data, periodFilter }: StatsPanelProps) {
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium text-foreground">{operator}</span>
-                      <span className="text-muted-foreground">
-                        {count} ({percentage}%)
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground">
+                          Moy: {avgSignalements} signalements
+                        </span>
+                        <span className="text-muted-foreground">
+                          {count} ({percentage}%)
+                        </span>
+                      </div>
                     </div>
                     <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                       <div

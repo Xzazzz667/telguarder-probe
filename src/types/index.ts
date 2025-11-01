@@ -8,6 +8,7 @@ export interface ScrapedNumber {
   operator?: string;
   operatorCode?: string;
   source?: string;
+  signalements?: number | null;
 }
 
 export interface OperatorRange {

@@ -6,6 +6,7 @@ import { ScrapingForm } from '@/components/ScrapingForm';
 import { ResultsTable } from '@/components/ResultsTable';
 import { StatsPanel } from '@/components/StatsPanel';
 import { CountdownTimer } from '@/components/CountdownTimer';
+import { OrangeReportsFetcher } from '@/components/OrangeReportsFetcher';
 import { operatorMatcher } from '@/utils/operatorMatcher';
 import { loadOperatorRanges, loadOperatorIdentities } from '@/utils/csvLoader';
 import { DatabaseService } from '@/services/DatabaseService';
@@ -134,6 +135,12 @@ const Index = () => {
             onScrapingComplete={handleScrapingComplete}
             currentDataCount={scrapedData.length}
           />
+
+          {/* Orange Reports Fetcher */}
+          <OrangeReportsFetcher onFetchComplete={async () => {
+            const refreshed = await DatabaseService.getAllNumbers();
+            setScrapedData(refreshed);
+          }} />
 
           {/* Results Section */}
           {scrapedData.length > 0 && (
