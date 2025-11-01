@@ -71,10 +71,14 @@ Deno.serve(async (req) => {
         const orangeUrl = `https://antispam.orange-telephone.com/fr/antispam/+${phoneForOrange}`;
         console.log(`Fetching Orange data for ${phoneForOrange}...`);
 
-        // Faire la requête vers Orange
+        // Faire la requête vers Orange avec gestion du certificat SSL
         const response = await fetch(orangeUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
           }
         });
 
@@ -148,7 +152,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || 'An error occurred',
+        error: error instanceof Error ? error.message : 'An error occurred',
       }),
       { 
         status: 500,
