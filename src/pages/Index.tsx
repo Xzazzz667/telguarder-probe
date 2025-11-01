@@ -7,6 +7,7 @@ import { ResultsTable } from '@/components/ResultsTable';
 import { StatsPanel } from '@/components/StatsPanel';
 import { CountdownTimer } from '@/components/CountdownTimer';
 import { OrangeReportsFetcher } from '@/components/OrangeReportsFetcher';
+import { PhoneSearchModule } from '@/components/PhoneSearchModule';
 import { operatorMatcher } from '@/utils/operatorMatcher';
 import { loadOperatorRanges, loadOperatorIdentities } from '@/utils/csvLoader';
 import { DatabaseService } from '@/services/DatabaseService';
@@ -129,6 +130,9 @@ const Index = () => {
         <div className="space-y-8">
           {/* Countdown Timer */}
           <CountdownTimer />
+          
+          {/* Phone Search Module */}
+          <PhoneSearchModule />
           
           {/* Scraping Form */}
           <ScrapingForm 
