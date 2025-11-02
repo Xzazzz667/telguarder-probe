@@ -20,7 +20,7 @@ async function crawlWithFirecrawl(url: string, apiKey: string, source: string): 
   
   const allNumbers: ScrapedNumber[] = [];
   const seenNumbers = new Set<string>();
-  const PER_SOURCE_LIMIT = 100;
+  const PER_SOURCE_LIMIT = 999999;
   
   // Pattern pour les numéros français - on crée des instances séparées pour éviter les problèmes de state
   const phonePattern = /(?<!\d)(?:\+?33|0033)\s*[1-9](?:[\s\u00A0\u2009\u202F.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9](?:[\s\u00A0\u2009\u202F.\-]?\d{2}){4}(?!\d)|(?<!\d)0[1-9]\d{8}(?!\d)/;
@@ -354,11 +354,11 @@ Deno.serve(async (req) => {
 
     // Configuration des sources avec codes courts et limites
     const sources = [
-      { name: 'telguarder', code: 'TELG', url: 'https://www.telguarder.com/fr', maxNumbers: 50 },
-      { name: 'tellows', code: 'TELW', url: 'https://www.tellows.fr/', maxNumbers: 50 },
-      { name: 'slickly', code: 'SLIK', url: 'https://slick.ly/fr/', maxNumbers: 50 },
-      { name: 'numeroinconnu', code: 'NUMI', url: 'https://www.numeroinconnu.fr/', maxNumbers: 50 },
-      { name: 'callfilter', code: 'CALF', url: 'https://callfilter.app/', maxNumbers: 50 },
+      { name: 'telguarder', code: 'TELG', url: 'https://www.telguarder.com/fr', maxNumbers: 999999 },
+      { name: 'tellows', code: 'TELW', url: 'https://www.tellows.fr/', maxNumbers: 999999 },
+      { name: 'slickly', code: 'SLIK', url: 'https://slick.ly/fr/', maxNumbers: 999999 },
+      { name: 'numeroinconnu', code: 'NUMI', url: 'https://www.numeroinconnu.fr/', maxNumbers: 999999 },
+      { name: 'callfilter', code: 'CALF', url: 'https://callfilter.app/', maxNumbers: 999999 },
     ];
 
     // Crawler les cinq sites en parallèle avec timeout par site

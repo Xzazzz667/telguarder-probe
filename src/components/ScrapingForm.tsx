@@ -30,7 +30,7 @@ export function ScrapingForm({ onScrapingComplete, currentDataCount }: ScrapingF
       const { FirecrawlService } = await import('@/services/FirecrawlService');
       
       // Lancer le scraping (qui enregistrera automatiquement en base)
-      const data = await FirecrawlService.scrapeTelguarder(1000, 0, (current, total) => {
+      const data = await FirecrawlService.scrapeTelguarder(999999, 0, (current, total) => {
         setCurrentCount(current);
         setTotalCount(total);
         setProgress((current / total) * 100);
