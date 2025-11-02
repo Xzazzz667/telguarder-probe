@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ScrapedNumber } from '@/types';
 import { PeriodFilter } from '@/types/filters';
@@ -6,8 +6,8 @@ import { ScrapingForm } from '@/components/ScrapingForm';
 import { ResultsTable } from '@/components/ResultsTable';
 import { StatsPanel } from '@/components/StatsPanel';
 import { CountdownTimer } from '@/components/CountdownTimer';
-import { OrangeReportsFetcher } from '@/components/OrangeReportsFetcher';
-import { PhoneSearchModule } from '@/components/PhoneSearchModule';
+
+import { PhoneSearchModule, PhoneSearchModuleRef } from '@/components/PhoneSearchModule';
 import { operatorMatcher } from '@/utils/operatorMatcher';
 import { loadOperatorRanges, loadOperatorIdentities } from '@/utils/csvLoader';
 import { DatabaseService } from '@/services/DatabaseService';
@@ -19,6 +19,7 @@ import { Loader2, Phone, LogOut } from 'lucide-react';
 const Index = () => {
   const { user, signOut, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const phoneSearchRef = useRef<PhoneSearchModuleRef>(null);
   const [scrapedData, setScrapedData] = useState<ScrapedNumber[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
@@ -132,19 +133,13 @@ const Index = () => {
           <CountdownTimer />
           
           {/* Phone Search Module */}
-          <PhoneSearchModule />
+          <PhoneSearchModule ref={phoneSearchRef} />
           
           {/* Scraping Form */}
           <ScrapingForm 
             onScrapingComplete={handleScrapingComplete}
             currentDataCount={scrapedData.length}
           />
-
-          {/* Orange Reports Fetcher */}
-          <OrangeReportsFetcher onFetchComplete={async () => {
-            const refreshed = await DatabaseService.getAllNumbers();
-            setScrapedData(refreshed);
-          }} />
 
           {/* Results Section */}
           {scrapedData.length > 0 && (
@@ -154,6 +149,7 @@ const Index = () => {
                 data={scrapedData} 
                 periodFilter={periodFilter}
                 onPeriodFilterChange={setPeriodFilter}
+                onPhoneNumberClick={(phoneNumber) => phoneSearchRef.current?.searchNumber(phoneNumber)}
               />
             </>
           )}

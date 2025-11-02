@@ -26,11 +26,12 @@ interface ResultsTableProps {
   data: ScrapedNumber[];
   periodFilter: PeriodFilter;
   onPeriodFilterChange: (period: PeriodFilter) => void;
+  onPhoneNumberClick?: (phoneNumber: string) => void;
 }
 
 const ITEMS_PER_PAGE = 50;
 
-export function ResultsTable({ data, periodFilter, onPeriodFilterChange }: ResultsTableProps) {
+export function ResultsTable({ data, periodFilter, onPeriodFilterChange, onPhoneNumberClick }: ResultsTableProps) {
   const [filters, setFilters] = useState<FilterState>({
     operator: 'all',
     category: 'all',
@@ -280,12 +281,6 @@ export function ResultsTable({ data, periodFilter, onPeriodFilterChange }: Resul
                 <TableHead>Commentaire</TableHead>
                 <TableHead
                   className="cursor-pointer select-none"
-                  onClick={() => handleSort('signalements')}
-                >
-                  Signalements {sortColumn === 'signalements' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer select-none"
                   onClick={() => handleSort('date')}
                 >
                   Date {sortColumn === 'date' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -296,14 +291,12 @@ export function ResultsTable({ data, periodFilter, onPeriodFilterChange }: Resul
               {paginatedData.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-mono text-sm">
-                    <a
-                      href={`https://antispam.orange-telephone.com/fr/antispam/+${item.phoneNumber.startsWith('0') ? '33' + item.phoneNumber.slice(1) : item.phoneNumber}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline hover:text-primary/80 transition-colors"
+                    <button
+                      onClick={() => onPhoneNumberClick?.(item.phoneNumber.startsWith('0') ? '33' + item.phoneNumber.slice(1) : item.phoneNumber)}
+                      className="text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer"
                     >
                       {item.phoneNumber.startsWith('0') ? '33' + item.phoneNumber.slice(1) : item.phoneNumber}
-                    </a>
+                    </button>
                   </TableCell>
                   <TableCell>
                     <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
@@ -331,21 +324,6 @@ export function ResultsTable({ data, periodFilter, onPeriodFilterChange }: Resul
                     </span>
                   </TableCell>
                   <TableCell className="max-w-md truncate text-sm">{item.comment || '-'}</TableCell>
-                  <TableCell className="text-center">
-                    {item.signalements !== null && item.signalements !== undefined ? (
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        item.signalements > 1000 
-                          ? 'bg-destructive/10 text-destructive' 
-                          : item.signalements > 100
-                          ? 'bg-orange-500/10 text-orange-600'
-                          : 'bg-accent/10 text-accent'
-                      }`}>
-                        {item.signalements}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{item.date}</TableCell>
                 </TableRow>
               ))}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Loader2 } from 'lucide-react';
@@ -24,15 +24,17 @@ interface SearchResult {
   results: PhoneStats[];
 }
 
-export function PhoneSearchModule() {
+export interface PhoneSearchModuleRef {
+  searchNumber: (number: string) => void;
+}
+
+export const PhoneSearchModule = React.forwardRef<PhoneSearchModuleRef>((props, ref) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!phoneNumber.trim()) {
+  const performSearch = async (number: string) => {
+    if (!number.trim()) {
       toast.error('Veuillez entrer un numéro de téléphone');
       return;
     }
@@ -41,10 +43,10 @@ export function PhoneSearchModule() {
     setSearchResult(null);
 
     try {
-      console.log('Searching stats for:', phoneNumber);
+      console.log('Searching stats for:', number);
       
       const { data, error } = await supabase.functions.invoke('search-phone-stats', {
-        body: { phoneNumber: phoneNumber.trim() },
+        body: { phoneNumber: number.trim() },
       });
 
       if (error) {
@@ -58,6 +60,7 @@ export function PhoneSearchModule() {
 
       console.log('Search results:', data);
       setSearchResult(data);
+      setPhoneNumber(number);
       toast.success('Recherche terminée');
     } catch (error) {
       console.error('Error searching phone stats:', error);
@@ -66,6 +69,18 @@ export function PhoneSearchModule() {
       setIsLoading(false);
     }
   };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await performSearch(phoneNumber);
+  };
+
+  // Expose search method via ref
+  useImperativeHandle(ref, () => ({
+    searchNumber: (number: string) => {
+      performSearch(number);
+    },
+  }));
 
   return (
     <div className="w-full rounded-xl border bg-card p-6 shadow-[var(--shadow-md)]">
@@ -165,4 +180,4 @@ export function PhoneSearchModule() {
       )}
     </div>
   );
-}
+});
