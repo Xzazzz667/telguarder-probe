@@ -3,20 +3,40 @@ import { ScrapedNumber } from '@/types';
 import { operatorMatcher } from '@/utils/operatorMatcher';
 
 export class DatabaseService {
-  // Récupérer tous les numéros de la base de données
+  // Récupérer tous les numéros de la base de données (sans limite 1000)
   static async getAllNumbers(): Promise<ScrapedNumber[]> {
-    const { data, error } = await supabase
-      .from('scraped_numbers')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const pageSize = 1000; // limite par défaut côté API
+    let from = 0;
+    let to = pageSize - 1;
+    const rows: any[] = [];
 
-    if (error) {
-      console.error('Error fetching numbers:', error);
-      throw error;
+    while (true) {
+      const { data, error } = await supabase
+        .from('scraped_numbers')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) {
+        console.error('Error fetching numbers (range:', from, to, '):', error);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        rows.push(...data);
+      }
+
+      // Si on a reçu moins que pageSize, on a tout récupéré
+      if (!data || data.length < pageSize) break;
+
+      from += pageSize;
+      to += pageSize;
     }
 
+    console.log(`Fetched ${rows.length} numbers from database (paged)`);
+
     // Mapper les données de la base vers le format ScrapedNumber
-    return (data || []).map(row => ({
+    return rows.map(row => ({
       id: row.id,
       phoneNumber: row.phone_number,
       rawNumber: row.raw_number,
