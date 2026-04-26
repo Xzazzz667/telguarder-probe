@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TimeRemaining {
   hours: number;
@@ -8,53 +9,59 @@ interface TimeRemaining {
   seconds: number;
 }
 
+const INTERVAL_MS = 36 * 60 * 60 * 1000; // 36 heures
+
 export function CountdownTimer() {
-  const [timeRemaining, setTimeRemaining] = useState<TimeRemaining>({ hours: 0, minutes: 0, seconds: 0 });
+  const [timeRemaining, setTimeRemaining] = useState<TimeRemaining>({ hours: 36, minutes: 0, seconds: 0 });
+  const [nextRun, setNextRun] = useState<Date | null>(null);
+
+  // Charger la dernière exécution depuis la base pour calculer la prochaine (last + 36h)
+  useEffect(() => {
+    const loadNextRun = async () => {
+      const { data, error } = await supabase
+        .from('scrape_schedule_state' as any)
+        .select('last_run_at')
+        .eq('id', 1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('CountdownTimer: cannot read schedule state', error);
+        // Fallback : maintenant + 36h
+        setNextRun(new Date(Date.now() + INTERVAL_MS));
+        return;
+      }
+
+      const last = (data as any)?.last_run_at ? new Date((data as any).last_run_at) : null;
+      if (last) {
+        setNextRun(new Date(last.getTime() + INTERVAL_MS));
+      } else {
+        setNextRun(new Date(Date.now() + INTERVAL_MS));
+      }
+    };
+
+    loadNextRun();
+    // Recharger toutes les 2 minutes au cas où le job s'est déclenché
+    const refresh = setInterval(loadNextRun, 120000);
+    return () => clearInterval(refresh);
+  }, []);
 
   useEffect(() => {
-    const calculateTimeRemaining = (): TimeRemaining => {
-      const now = new Date();
-      const currentHour = now.getHours();
-      
-      // Prochaine exécution : 13:00 ou 21:00
-      let nextRun = new Date(now);
-      nextRun.setMinutes(0);
-      nextRun.setSeconds(0);
-      nextRun.setMilliseconds(0);
-      
-      if (currentHour < 13) {
-        nextRun.setHours(13);
-      } else if (currentHour < 21) {
-        nextRun.setHours(21);
-      } else {
-        // Après 21h, prochain run est demain à 13h
-        nextRun.setDate(nextRun.getDate() + 1);
-        nextRun.setHours(13);
-      }
-      
-      const diff = nextRun.getTime() - now.getTime();
-      
+    if (!nextRun) return;
+
+    const tick = () => {
+      const diff = Math.max(0, nextRun.getTime() - Date.now());
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      
-      return { hours, minutes, seconds };
+      setTimeRemaining({ hours, minutes, seconds });
     };
 
-    // Mise à jour initiale
-    setTimeRemaining(calculateTimeRemaining());
-
-    // Mise à jour toutes les secondes
-    const interval = setInterval(() => {
-      setTimeRemaining(calculateTimeRemaining());
-    }, 1000);
-
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [nextRun]);
 
-  const formatTime = (value: number): string => {
-    return value.toString().padStart(2, '0');
-  };
+  const formatTime = (value: number): string => value.toString().padStart(2, '0');
 
   return (
     <Card className="bg-gradient-to-br from-primary/5 to-primary-glow/5 border-primary/20 shadow-[var(--shadow-sm)]">
@@ -65,7 +72,7 @@ export function CountdownTimer() {
           </div>
           <div className="flex-1">
             <h3 className="text-sm font-medium text-foreground mb-1">
-              Prochaine mise à jour automatique
+              Prochaine mise à jour automatique (toutes les 36h)
             </h3>
             <div className="flex items-center gap-2">
               <div className="flex items-baseline gap-1">
