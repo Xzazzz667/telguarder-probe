@@ -16,17 +16,24 @@ export class OperatorMatcher {
   }
 
   matchNumber(phoneNumber: string): { operator: string; operatorCode: string } {
-    // Nettoyer le numéro (retirer espaces, tirets, etc.)
-    const cleanNumber = phoneNumber.replace(/\D/g, '');
-    
-    if (!cleanNumber || cleanNumber.length !== 10) {
+    // Nettoyer le numéro (retirer espaces, tirets, +, etc.)
+    let cleanNumber = phoneNumber.replace(/\D/g, '');
+
+    // Normaliser vers le format national 0XXXXXXXXX (10 chiffres) pour la comparaison
+    // car les tranches MAJNUM sont au format 0XXXXXXXXX
+    if (cleanNumber.startsWith('0033') && cleanNumber.length === 13) {
+      cleanNumber = '0' + cleanNumber.slice(4);
+    } else if (cleanNumber.startsWith('33') && cleanNumber.length === 11) {
+      cleanNumber = '0' + cleanNumber.slice(2);
+    }
+
+    if (!cleanNumber || cleanNumber.length !== 10 || !cleanNumber.startsWith('0')) {
       return {
         operator: 'Inconnu',
         operatorCode: 'INVALID'
       };
     }
 
-    // Pour la comparaison, on garde le numéro complet avec le 0
     const fullNumber = cleanNumber;
     
     // Chercher la tranche correspondante
