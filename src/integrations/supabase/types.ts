@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      scrape_schedule_state: {
+        Row: {
+          id: number
+          last_run_at: string | null
+        }
+        Insert: {
+          id?: number
+          last_run_at?: string | null
+        }
+        Update: {
+          id?: number
+          last_run_at?: string | null
+        }
+        Relationships: []
+      }
       scraped_numbers: {
         Row: {
           category: string
